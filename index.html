@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Spherical and Vector Harmonics Visualization</title>
+
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+    /* Style for the GUI container */
+
+    /* Ensure GUI container has appropriate z-index and positioning */
+    #gui-container {
+      position: absolute;
+      top: 30px;
+      left: 10px;
+      z-index: 1001; /* Adjusted to be above the popup background but below the close button */
+      padding-right: 50px; /* Add padding to prevent overlap with the close button */
+    }
+    /* Styles for the info popup */
+    #info-popup {
+      display: none; /* Hidden by default */
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto; /* Enable scroll if needed */
+      background-color: rgba(0, 0, 0, 0.6); /* Black background with opacity */
+      backdrop-filter: blur(4px); /* Blur effect for background */
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    #info-popup-content {
+      background-color: #fefefe;
+      margin: 1% auto;
+      padding: 20px 30px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 1200px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      position: relative;
+      animation: slideIn 0.4s ease-out;
+      max-height: 90vh; /* Slightly reduced max-height */
+      overflow: auto; /* Enable scrollbars if content overflows */
+    }
+
+    /* Additional responsive adjustments for smaller screens */
+    @media (max-width: 768px) {
+      .close-button {
+        top: 5px;
+        right: 5px;
+        font-size: 24px; /* Slightly smaller to fit better on small screens */
+      }
+
+      #gui-container {
+        padding-right: 30px; /* Less padding on smaller screens */
+      }
+    }
+    /* Adjust the positioning and z-index of the close button */
+    .close-button {
+      color: #ffffff;
+      float: right;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      position: absolute; /* Ensures it does not affect the layout of other elements */
+      top: -30px; /* Adjust top positioning as needed */
+      left: 0px; /* Adjust right positioning as needed */
+      z-index: 1010; /* Higher than the container to make it appear on top */
+    }
+
+    .close-button:hover,
+    .close-button:focus {
+      color: #ffff00;
+      text-decoration: none;
+    }
+
+    h2 {
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 10px;
+    }
+
+    p, ul {
+      line-height: 1.6;
+    }
+
+    ul {
+      margin-left: 20px;
+    }
+
+    a {
+      color: #1a0dab;
+      text-decoration: none;
+      border-bottom: 1px dotted #1a0dab;
+    }
+
+    a:hover {
+      color: #c61aff;
+      border-bottom: 1px solid #c61aff;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideIn {
+      from { transform: translateY(-20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Responsive adjustments */
+    @media screen and (max-width: 600px) {
+      #info-popup-content {
+        width: 95%;
+        margin-top: 10%;
+      }
+
+      .close-button {
+        font-size: 24px;
+        top: 10px;
+        right: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+<!-- Container for the GUI -->
+<div id="gui-container"></div>
+
+<!-- Info Popup -->
+<div id="info-popup">
+  <div id="info-popup-content">
+    <span class="close-button" id="info-close">&times;</span>
+    <h2>Simulation Overview</h2>
+    <p>
+      This simulation visualizes both the <strong>scalar</strong> and <strong>vector spherical harmonics</strong>, which are essential in describing wave phenomena in elastic solids. In an elastic solid, waves can propagate in different modes, primarily as <em>compressional (longitudinal)</em> and <em>shear (transverse)</em> waves. The scalar spherical harmonics represent scalar fields and are often associated with pressure waves (longitudinal), while vector spherical harmonics are used to describe vector fields like displacement or velocity fields in shear waves (transverse).
+    </p>
+    <p>
+      By adjusting the parameters, you can explore how these harmonics represent different wave patterns in an elastic medium, helping to visualize complex phenomena such as wave propagation, interference, and resonance within spherical geometries like those found in geophysics or materials science.
+    </p>
+
+    <h2>Vector Fields and Colors</h2>
+    <p>
+      <strong>Vector Meaning:</strong> When in <em>Vector Harmonic</em> mode, the arrows represent the vector spherical harmonics, which illustrate the orientation and magnitude of vector fields in an elastic solid. These vector fields correspond to displacement directions of particles in the medium:
+    <ul>
+      <li><strong>Transverse Waves (Shear Waves):</strong> Particles move perpendicular to the direction of wave propagation. The vector spherical harmonics capture these movements through their angular dependence.</li>
+      <li><strong>Longitudinal Waves (Compressional Waves):</strong> Particles move parallel to the direction of wave propagation. While scalar spherical harmonics primarily describe these waves, vector harmonics can also represent the associated vector fields.</li>
+    </ul>
+    </p>
+    <p>
+      <strong>Color Explanation:</strong>
+    <ul>
+      <li><strong>Amplitude-based coloring:</strong> Colors vary with the amplitude of the wave function or vector magnitude. Higher amplitudes are indicated by warmer colors (reds and yellows), and lower amplitudes by cooler colors (blues and greens).</li>
+      <li><strong>Phase-based coloring:</strong> Colors represent the phase of the wave function, transitioning smoothly across the spectrum (e.g., red to violet) to illustrate the cyclical nature of the wave.</li>
+      <li><strong>Direction-based coloring (Vector Harmonics):</strong> Colors can also represent the direction of vectors, mapping angular directions to hues to provide intuitive visualization of vector orientations.</li>
+    </ul>
+    </p>
+
+    <h2>Controls</h2>
+    <p>The GUI on the left allows you to adjust various parameters of the simulation:</p>
+    <ul>
+      <li><strong>n:</strong> Principal quantum number (n ≥ 1).</li>
+      <li><strong>l:</strong> Azimuthal quantum number (0 ≤ l ≤ n-1).</li>
+      <li><strong>m:</strong> Magnetic quantum number (-l ≤ m ≤ l).</li>
+      <li><strong>Harmonic Type:</strong> Switch between 'Scalar' and 'Vector' spherical harmonics.</li>
+      <li><strong>Amplitude Scale:</strong> Adjusts the scaling of the amplitude for visualization purposes.</li>
+      <li><strong>Displacement Scale:</strong> Controls the magnitude of point displacement in the visualization.</li>
+      <li><strong>Angular Frequency:</strong> Adjusts the frequency of the time dependence.</li>
+      <li><strong>Time Scale:</strong> Adjusts the speed of the animation.</li>
+      <li><strong>Animate Wave:</strong> Toggles the animation of the wave function.</li>
+      <li><strong>Color Scheme:</strong> Choose between coloring based on amplitude or phase.</li>
+      <li><strong>Slice Axis:</strong> Choose an axis along which to slice the visualization.</li>
+      <li><strong>Slice Position:</strong> Adjusts the position of the slicing plane.</li>
+      <li><strong>Point Size:</strong> Adjusts the size of the points in the point cloud.</li>
+      <li><strong>Grid Extent:</strong> Adjusts the size of the grid.</li>
+      <li><strong>Scaling Factor:</strong> Adjusts the scaling factor for the grid.</li>
+      <li><strong>Vector Scale:</strong> Adjusts the scaling of the vector field arrows (only in 'Vector' mode).</li>
+      <li><strong>Skip Points:</strong> Adjusts the sampling rate for vector field visualization.</li>
+      <li><strong>Threshold:</strong> Sets the minimum vector length to visualize.</li>
+      <li><strong>Highlight Random Point:</strong> Randomly highlights a point to track its motion.</li>
+      <li><strong>Info:</strong> Opens this information popup.</li>
+    </ul>
+
+    <h2>Formulas Used</h2>
+    <p>The simulation uses several mathematical concepts and formulas to compute the spherical harmonics and associated fields:</p>
+    <ul>
+      <li>
+        <strong>Spherical Harmonics:</strong> \( Y_l^m(\theta, \phi) \) are defined as:
+        \[
+        Y_l^m(\theta, \phi) = N_l^m P_l^m(\cos\theta) e^{i m \phi}
+        \]
+        where:
+        <ul>
+          <li>\( N_l^m \) is the normalization constant:
+            \[
+            N_l^m = \sqrt{\frac{2l + 1}{4\pi} \frac{(l - m)!}{(l + m)!}}
+            \]
+          </li>
+          <li>\( P_l^m(\cos\theta) \) are the <strong>Associated Legendre Polynomials</strong>.</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Associated Legendre Polynomials:</strong> \( P_l^m(x) \) are solutions to the Legendre differential equation and can be computed using recurrence relations.
+      </li>
+      <li>
+        <strong>Radial Wave Function for Hydrogen Atom:</strong> \( R_{nl}(r) \) is given by:
+        \[
+        R_{nl}(r) = N_{nl} \left( \frac{2 Z r}{n a_0} \right)^l e^{-Z r / (n a_0)} L_{n - l - 1}^{2l + 1}\left( \frac{2 Z r}{n a_0} \right)
+        \]
+        where:
+        <ul>
+          <li>\( N_{nl} \) is the normalization constant.</li>
+          <li>\( L_{n - l - 1}^{2l + 1}(x) \) are the <strong>Generalized Laguerre Polynomials</strong>.</li>
+          <li>\( Z \) is the atomic number (for hydrogen, \( Z = 1 \)).</li>
+          <li>\( a_0 \) is the Bohr radius.</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Vector Spherical Harmonics:</strong> Used to represent vector fields on the sphere, defined in terms of scalar spherical harmonics and their gradients:
+        \[
+        \mathbf{Y}_{lm} = r \nabla Y_l^m(\theta, \phi)
+        \]
+      </li>
+      <li>
+        <strong>Spherical Bessel Functions:</strong> \( j_n(x) \) appear in solutions to the radial part of wave equations in spherical coordinates:
+        \[
+        j_n(x) = \sqrt{\frac{\pi}{2x}} J_{n + 1/2}(x)
+        \]
+        where \( J_{n + 1/2}(x) \) is a Bessel function of the first kind.
+      </li>
+      <li>
+        <strong>Time Dependence:</strong> Incorporated using a phase factor \( e^{-i \omega t} \), where \( \omega \) is the angular frequency.
+      </li>
+    </ul>
+    <p>
+      By combining these mathematical constructs, the simulation calculates the probability amplitudes and vector fields associated with different quantum states, allowing for a rich visualization of quantum mechanical behaviors in an elastic solid context.
+    </p>
+    <p>
+      For more detailed mathematical background, you can refer to:
+    <ul>
+      <li><a href="https://en.wikipedia.org/wiki/Spherical_harmonics" target="_blank">Spherical Harmonics</a></li>
+      <li><a href="https://en.wikipedia.org/wiki/Associated_Legendre_polynomials" target="_blank">Associated Legendre Polynomials</a></li>
+      <li><a href="https://en.wikipedia.org/wiki/Hydrogen_atom#Wavefunction" target="_blank">Hydrogen Atom Wavefunction</a></li>
+      <li><a href="https://en.wikipedia.org/wiki/Vector_spherical_harmonics" target="_blank">Vector Spherical Harmonics</a></li>
+      <li><a href="https://en.wikipedia.org/wiki/Bessel_function#Spherical_Bessel_functions:_jn,_yn" target="_blank">Spherical Bessel Functions</a></li>
+    </ul>
+    </p>
+  </div>
+</div>
+
+<!-- Include Three.js library -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js"></script>
+<!-- Include OrbitControls -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.124.0/examples/js/controls/OrbitControls.js"></script>
+<!-- Include dat.GUI library for controls -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.0.0/math.min.js"></script>
+
+<div id="gui-container"></div>
+<script src="script.js"></script>
+
+</body>
+</html>
