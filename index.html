@@ -6,132 +6,17 @@
 
   <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
-  <style>
-    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  <!-- Include Three.js library -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js"></script>
+  <!-- Include OrbitControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.124.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Include dat.GUI library for controls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.0.0/math.min.js"></script>
 
-    /* Style for the GUI container */
-
-    /* Ensure GUI container has appropriate z-index and positioning */
-    #gui-container {
-      position: absolute;
-      top: 30px;
-      left: 10px;
-      z-index: 1001; /* Adjusted to be above the popup background but below the close button */
-      padding-right: 50px; /* Add padding to prevent overlap with the close button */
-    }
-    /* Styles for the info popup */
-    #info-popup {
-      display: none; /* Hidden by default */
-      position: fixed;
-      z-index: 1000;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      overflow: auto; /* Enable scroll if needed */
-      background-color: rgba(0, 0, 0, 0.6); /* Black background with opacity */
-      backdrop-filter: blur(4px); /* Blur effect for background */
-      animation: fadeIn 0.3s ease-out;
-    }
-
-    #info-popup-content {
-      background-color: #fefefe;
-      margin: 1% auto;
-      padding: 20px 30px;
-      border-radius: 10px;
-      width: 90%;
-      max-width: 1200px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-      position: relative;
-      animation: slideIn 0.4s ease-out;
-      max-height: 90vh; /* Slightly reduced max-height */
-      overflow: auto; /* Enable scrollbars if content overflows */
-    }
-
-    /* Additional responsive adjustments for smaller screens */
-    @media (max-width: 768px) {
-      .close-button {
-        top: 5px;
-        right: 5px;
-        font-size: 24px; /* Slightly smaller to fit better on small screens */
-      }
-
-      #gui-container {
-        padding-right: 30px; /* Less padding on smaller screens */
-      }
-    }
-    /* Adjust the positioning and z-index of the close button */
-    .close-button {
-      color: #ffffff;
-      float: right;
-      font-size: 20px;
-      font-weight: bold;
-      cursor: pointer;
-      position: absolute; /* Ensures it does not affect the layout of other elements */
-      top: -30px; /* Adjust top positioning as needed */
-      left: 0px; /* Adjust right positioning as needed */
-      z-index: 1010; /* Higher than the container to make it appear on top */
-    }
-
-    .close-button:hover,
-    .close-button:focus {
-      color: #ffff00;
-      text-decoration: none;
-    }
-
-    h2 {
-      border-bottom: 2px solid #ddd;
-      padding-bottom: 10px;
-    }
-
-    p, ul {
-      line-height: 1.6;
-    }
-
-    ul {
-      margin-left: 20px;
-    }
-
-    a {
-      color: #1a0dab;
-      text-decoration: none;
-      border-bottom: 1px dotted #1a0dab;
-    }
-
-    a:hover {
-      color: #c61aff;
-      border-bottom: 1px solid #c61aff;
-    }
-
-    /* Animations */
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    @keyframes slideIn {
-      from { transform: translateY(-20px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    /* Responsive adjustments */
-    @media screen and (max-width: 600px) {
-      #info-popup-content {
-        width: 95%;
-        margin-top: 10%;
-      }
-
-      .close-button {
-        font-size: 24px;
-        top: 10px;
-        right: 15px;
-      }
-    }
-  </style>
+  <link rel ="stylesheet" type="text/css" href = "style.css" >
 </head>
 <body>
-<!-- Container for the GUI -->
-<div id="gui-container"></div>
 
 <!-- Info Popup -->
 <div id="info-popup">
@@ -253,14 +138,6 @@
     </p>
   </div>
 </div>
-
-<!-- Include Three.js library -->
-<script src="https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js"></script>
-<!-- Include OrbitControls -->
-<script src="https://cdn.jsdelivr.net/npm/three@0.124.0/examples/js/controls/OrbitControls.js"></script>
-<!-- Include dat.GUI library for controls -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.0.0/math.min.js"></script>
 
 <div id="gui-container"></div>
 <script src="script.js"></script>
