@@ -1,7 +1,8 @@
 # Spherical and Vector Harmonics Visualization
 
 This project provides a dynamic visualization of **spherical and vector harmonics**, commonly used in fields such as quantum mechanics, electromagnetism, and wave propagation in elastic solids. The simulation explores scalar and vector spherical harmonics, depicting wave behaviors in a visually interactive way, useful for educational purposes and scientific research.
-
+![Simulation Screenshot](assets/spherical1.png)
+![Simulation Screenshot](assets/vector1.png)
 
 ## Features
 - **Visualization of Scalar and Vector Harmonics:** Choose between scalar and vector spherical harmonics, visualizing their properties in an elastic medium.
