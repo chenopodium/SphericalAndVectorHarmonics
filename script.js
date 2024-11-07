@@ -222,8 +222,6 @@ function derivative_rho_zn(n, rho) {
     derivativeRhoZnCache[key] = result;
     return result;
 }
-
-// Function to compute the vector at a point (Vector Spherical Harmonics)
 function computeVectorAtPoint(n, m, data, t) {
     const r = data.r;
     const theta = data.theta;
@@ -238,10 +236,10 @@ function computeVectorAtPoint(n, m, data, t) {
     }
 
     // Retrieve precomputed values
-    const jn = data.jn;
-    const derivative_rhoz_n = data.derivative_rhoz_n;
+    const P_n_m = data.P_lm; // Use precomputed P_n_m
+    const dP_n_m_dtheta = data.dP_lm_dtheta; // Use precomputed derivative
 
-    // Introduce time dependence in angular functions through phase
+    // Introduce time dependence through phase
     const phase = m * phi - params.omega * t;
 
     // Compute angular functions with time dependence
@@ -253,19 +251,40 @@ function computeVectorAtPoint(n, m, data, t) {
         sin_theta = epsilon; // Avoid division by zero
     }
 
-    // Compute components in spherical coordinates
-    const P_n_m = data.P_lm; // Use precomputed P_n_m
-    const dP_n_m_dtheta = data.dP_lm_dtheta; // Use precomputed derivative
+    let N_r = 0, N_theta = 0, N_phi = 0;
 
-    // Radial component N_r
-    const N_r = ((n * (n + 1) * jn) / rho) * P_n_m * cos_m_phi;
+    if (params.harmonicType === 'Magnetic Vector Harmonics') {
+        // Magnetic Vector Spherical Harmonics
 
-    // Theta component N_theta
-    const N_theta = (derivative_rhoz_n / rho) * dP_n_m_dtheta * cos_m_phi;
+        // Radial component is zero
+        N_r = 0;
 
-    // Phi component N_phi
-    const N_phi =
-        (-m * (P_n_m / sin_theta) * derivative_rhoz_n) / rho * sin_m_phi;
+        // Theta component
+        N_theta = (data.jn / sin_theta) * m * P_n_m * sin_m_phi;
+
+        // Phi component
+        N_phi = -data.jn * dP_n_m_dtheta * cos_m_phi;
+
+    } else if (params.harmonicType === 'Electric Vector Harmonics') {
+        // Electric Vector Spherical Harmonics
+
+        // Compute derivative of spherical Bessel function
+        const jn = data.jn;
+        const djn_drho = data.djn_drho;
+
+        // Radial component
+        N_r = n * (n + 1) * (jn / rho) * P_n_m * cos_m_phi;
+
+        // Theta component
+        N_theta = djn_drho * dP_n_m_dtheta * cos_m_phi;
+
+        // Phi component
+        N_phi = djn_drho * (m * P_n_m / sin_theta) * sin_m_phi;
+
+    } else {
+        // For other harmonic types, return zero vector
+        return new THREE.Vector3(0, 0, 0);
+    }
 
     // Convert to Cartesian coordinates using precomputed trigonometric values
     const sin_theta_cos_phi = sin_theta * data.cosPhi;
@@ -294,6 +313,7 @@ function computeVectorAtPoint(n, m, data, t) {
 
     return N_vector;
 }
+
 
 function clearCaches() {
     // Clear caches
@@ -413,13 +433,13 @@ function highlightRandomPoints() {
 }
 // Function to recreate objects when parameters change
 function recreateObjects() {
-  // Remove existing point cloud
-  if (pointCloud) {
-    scene.remove(pointCloud);
-    pointCloud.geometry.dispose();
-    pointCloud.material.dispose();
-    pointCloud = null;
-  }
+    // Remove existing point cloud
+    if (pointCloud) {
+        scene.remove(pointCloud);
+        pointCloud.geometry.dispose();
+        pointCloud.material.dispose();
+        pointCloud = null;
+    }
     // Remove existing highlight cubes and trails
     if (highlightCubes.length > 0) {
         for (let cube of highlightCubes) {
@@ -438,32 +458,35 @@ function recreateObjects() {
         }
         markerTrails = [];
     }
-  // Remove existing vector field arrows
-  if (arrowGroup) {
-    scene.remove(arrowGroup);
-    arrowGroup.traverse((child) => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) child.material.dispose();
-    });
-    arrowGroup = null;
-  }
+    // Remove existing vector field arrows
+    if (arrowGroup) {
+        scene.remove(arrowGroup);
+        arrowGroup.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+        arrowGroup = null;
+    }
 
-  // Reset time
-  params.t = 0;
-  clearCaches();
+    // Reset time
+    params.t = 0;
+    clearCaches();
 
-  // Create new objects
-  createObjects();
+    // Create new objects
+    createObjects();
 }
 
 // Function to create the point cloud and initialize fields
 function createObjects() {
-  createPointCloud(); // Create the point cloud representing the scalar field
+    createPointCloud(); // Create the point cloud representing the scalar field
     highlightRandomPoints();
-  precomputeWavefunctionData(); // Precompute per-point data
-  if (params.harmonicType === 'Vector') {
-    computeAndVisualizeVectorField(); // Compute and visualize the vector field
-  }
+    precomputeWavefunctionData(); // Precompute per-point data
+    if (
+        params.harmonicType === 'Magnetic Vector Harmonics' ||
+        params.harmonicType === 'Electric Vector Harmonics'
+    ) {
+        computeAndVisualizeVectorField(); // Compute and visualize the vector field
+    }
 }
 
 // Function to compute and visualize the vector field
@@ -735,48 +758,50 @@ function createPointCloud() {
 
 
 }
-
-// Function to precompute wavefunction data
+// Modify precomputeWavefunctionData to compute the derivative of the spherical Bessel function
 function precomputeWavefunctionData() {
-  const pointData = pointCloud.geometry.userData.pointData;
-  const n = params.n;
-  const l = params.l;
-  const m = params.m;
-  const scale = params.scale;
+    const pointData = pointCloud.geometry.userData.pointData;
+    const n = params.n;
+    const l = params.l;
+    const m = params.m;
+    const scale = params.scale;
 
-  for (let i = 0; i < pointData.length; i++) {
-    const data = pointData[i];
-    const cosTheta = data.cosTheta;
-    const theta = data.theta;
-    const r_scaled = data.r * scale;
+    for (let i = 0; i < pointData.length; i++) {
+        const data = pointData[i];
+        const cosTheta = data.cosTheta;
+        const theta = data.theta;
+        const r_scaled = data.r * scale;
 
-    // Compute and store associated Legendre polynomial P_l^m(cosTheta)
-    data.P_lm = associatedLegendreP(l, m, cosTheta);
+        // Compute and store associated Legendre polynomial P_l^m(cosTheta)
+        data.P_lm = associatedLegendreP(l, m, cosTheta);
 
-    // Compute and store derivative of P_l^m with respect to theta
-    data.dP_lm_dtheta = derivative_associatedLegendreP_theta(l, m, theta);
+        // Compute and store derivative of P_l^m with respect to theta
+        data.dP_lm_dtheta = derivative_associatedLegendreP_theta(l, m, theta);
 
-    // Compute and store trigonometric values
-    data.sinTheta = Math.sin(theta);
-    data.cosTheta = cosTheta;
-    data.sinPhi = Math.sin(data.phi);
-    data.cosPhi = Math.cos(data.phi);
+        // Compute and store trigonometric values
+        data.sinTheta = Math.sin(theta);
+        data.cosTheta = cosTheta;
+        data.sinPhi = Math.sin(data.phi);
+        data.cosPhi = Math.cos(data.phi);
 
-    // Compute and store radial wave function R_nl(r_scaled)
-    data.R_nl = radialWaveFunction(n, l, r_scaled);
+        // Compute and store radial wave function R_nl(r_scaled)
+        data.R_nl = radialWaveFunction(n, l, r_scaled);
 
-    // Compute and store spherical Bessel functions
-    const k = 1; // Wave number (can be adjusted)
-    const rho = k * data.r;
-    data.rho = rho;
-    if (rho > 1e-5) {
-      data.jn = sphericalBessel_jn(n, rho);
-      data.derivative_rhoz_n = derivative_rho_zn(n, rho);
-    } else {
-      data.jn = 0;
-      data.derivative_rhoz_n = 0;
+        // Compute and store spherical Bessel functions
+        const k = 1; // Wave number (can be adjusted)
+        const rho = k * data.r;
+        data.rho = rho;
+        if (rho > 1e-5) {
+            data.jn = sphericalBessel_jn(n, rho);
+            data.jn_plus1 = sphericalBessel_jn(n + 1, rho); // For derivative
+            data.djn_drho = (n / rho) * data.jn - data.jn_plus1; // Derivative of jn with respect to rho
+            data.derivative_rhoz_n = derivative_rho_zn(n, rho);
+        } else {
+            data.jn = 0;
+            data.djn_drho = 0;
+            data.derivative_rhoz_n = 0;
+        }
     }
-  }
 }
 
 // Function to apply the spin 1/2 transformation to a position using quaternions
@@ -872,6 +897,29 @@ function updatePointCloud() {
 
          color.setHSL(hue, 1.0, 0.5); // Adjust saturation and lightness as needed
 	}
+	 // Apply spin 1/2 transformation if enabled
+        if (params.applySpinHalf) {
+            const transformResult = spinHalfTransform(originalPosition, timeQuaternion, inverseTimeQuaternion);
+            originalPosition = transformResult.newPosition;
+        }
+
+        // Apply charge transformation if enabled
+        if (params.applyChargeTransformation) {
+            const transformResult = transformCharge(originalPosition);
+            originalPosition = transformResult.newPosition;
+            let scalingFactor = transformResult.scalingFactor;
+
+            // Compute color based on scalingFactor
+            const minScale = 0.75; // Adjust this range as necessary
+            const maxScale = 1.25;
+            const normalizedScale = (scalingFactor - minScale) / (maxScale - minScale);
+
+            // Clamp normalizedScale to [0, 1] to avoid overflows
+            const clampedScale = Math.max(0, Math.min(1, normalizedScale));
+            const hue = clampedScale * 0.7; // Map normalized scale to hue (0 is red, 0.7 is greenish)
+
+            color.setHSL(hue, 1.0, 0.5); // Adjust saturation and lightness as needed
+        }
     if (params.harmonicType === 'Scalar') {
       // Scalar Harmonic: Compute Psi_nlm
       let Y_lm = computeSphericalHarmonic(
@@ -908,21 +956,26 @@ function updatePointCloud() {
         color.setHSL(phaseValue, 1, 0.5); // Hue based on phase
       }
       size = params.pointSize * (1 + amplitude * params.amplitudeScale);
-    } else if (params.harmonicType === 'Vector') {
-      // Vector Harmonic: Compute vector displacement
-      const vectorDisplacement = computeVectorAtPoint(n, m, data, params.t)
-          .multiplyScalar(params.displacementScale*2);
-      displacementVector.copy(vectorDisplacement);
+    } else if (
+            params.harmonicType === 'Magnetic Vector Harmonics' ||
+            params.harmonicType === 'Electric Vector Harmonics'
+        ) {
+            // Vector Harmonics: Compute vector displacement
+            const vectorDisplacement = computeVectorAtPoint(n, m, data, params.t).multiplyScalar(
+                params.displacementScale * 2
+            );
+            displacementVector.copy(vectorDisplacement);
 
-      // Compute amplitude based on vector magnitude
-      amplitude = vectorDisplacement.length() * 5; // Scale for visualization
+            // Compute amplitude based on vector magnitude
+            amplitude = vectorDisplacement.length() * 5; // Scale for visualization
 
-      // Color based on vector properties (e.g., direction)
-      const phi = data.phi;
-      const normalizedPhi = (phi + Math.PI) / (2 * Math.PI); // Normalize phi to [0,1]
-      const hue = normalizedPhi; // Hue varies from 0 to 1 based on phi
-      color.setHSL(hue, 1, 0.5);
-      size = 0.5 * params.pointSize * (1 + amplitude * params.amplitudeScale);
+            // Color based on vector properties (e.g., direction)
+            const phi = data.phi;
+            const normalizedPhi = (phi + Math.PI) / (2 * Math.PI); // Normalize phi to [0,1]
+            const hue = normalizedPhi; // Hue varies from 0 to 1 based on phi
+            color.setHSL(hue, 1, 0.5);
+            size = 0.5 * params.pointSize * (1 + amplitude * params.amplitudeScale);
+       
     } else if (params.harmonicType === 'Spinor Only') {
       // Spinor Only: Color based on position after spin 1/2 transformation
       amplitude = originalPosition.length() * 0.3;
@@ -1121,16 +1174,19 @@ function animate() {
     params.t += dt;
 
     // Update phase angle for spin 1/2
-    params.phase += params.timeScale * 0.01;
-    if (params.phase > Math.PI * 4) params.phase -= Math.PI * 4;
+     params.phase = params.t;
   }
 
   updatePointCloud(); // Update the scalar field and positions
 
   // Update arrow helpers
-  if (params.harmonicType === 'Vector' && arrowHelpers.length > 0) {
-    updateArrowHelpers(); // Update the vector field
-  }
+  if (
+        (params.harmonicType === 'Magnetic Vector Harmonics' ||
+            params.harmonicType === 'Electric Vector Harmonics') &&
+        arrowHelpers.length > 0
+    ) {
+        updateArrowHelpers(); // Update the vector field
+    }
 
   // Render the scene
   controls.update();
@@ -1217,9 +1273,11 @@ function updateQuantumNumbers() {
     }
 }
 
-// Function to initialize GUI, only export params after this has run
+// Adjust the GUI to include the new harmonic type
 function initializeGUI() {
     params = {
+		  applySpinHalf: false,
+    applyChargeTransformation: false,
         extent: 5,
         scale: 3.0,
         n: 3,
@@ -1248,12 +1306,12 @@ function initializeGUI() {
         highlightRandomPoint,
         enableSpinHalf: false,
         spinorMode: 'Off',
-		chargeMode: 'Plus Charge',
+        chargeMode: 'Plus Charge',
         waveNumber: 4,
         maxKernelAngle: 180,
         decayPower: 2,
         phase: 0.0,
-		sphereRadius: 2.0,
+        sphereRadius: 2.0,
     };
 
     gui = new dat.GUI({ autoPlace: false });
@@ -1261,13 +1319,35 @@ function initializeGUI() {
     // Group GUI controls into folders to reduce clutter
 
     visualizationFolder = gui.addFolder('Visualization');
+
     // Visualization controls
-    visualizationFolder.add(params, 'harmonicType', ['Scalar', 'Vector', 'Spinor Only', 'Charge Only'])
+    visualizationFolder.add(params, 'harmonicType', [
+        'Scalar',
+        'Magnetic Vector Harmonics',
+        'Electric Vector Harmonics',
+        'Spinor Only',
+        'Charge Only',
+    ])
         .name('Wave Type')
         .onChange(() => {
             adjustGUIControls();
             recreateObjects();
         });
+		
+		visualizationFolder.add(params, 'applySpinHalf')
+    .name('Apply Spin 1/2 Transformation')
+    .onChange(() => {
+        adjustGUIControls();
+        recreateObjects();
+    });
+
+visualizationFolder.add(params, 'applyChargeTransformation')
+    .name('Apply Charge Transformation')
+    .onChange(() => {
+        adjustGUIControls();
+        recreateObjects();
+    });
+	
     quantumFolder = gui.addFolder('Quantum Numbers');
     spinFolder = gui.addFolder('Spin 1/2 Transformation');
     spinFolder.closed = false;
@@ -1426,10 +1506,12 @@ function computeChargeStrength(originalPosition) {
 function adjustGUIControls() {
     if (!params || !visualizationFolder || !spinFolder) return;
 
-    const isVector = params.harmonicType === 'Vector';
+     const isVector =
+        params.harmonicType === 'Magnetic Vector Harmonics' ||
+        params.harmonicType === 'Electric Vector Harmonics';
     const isScalar = params.harmonicType === 'Scalar';
-    const isSpinor = params.harmonicType === 'Spinor Only' || params.spinorMode !== 'Off';
-	const isCharge = params.harmonicType === 'Charge Only' ;
+    const isSpinor = params.applySpinHalf || params.harmonicType === 'Spinor Only' || params.spinorMode !== 'Off';
+	const isCharge = params.applyChargeTransformation ||params.harmonicType === 'Charge Only' ;
     visualizationFolder.__controllers.forEach(controller => {
         if (controller.property === 'vectorScale' ||
             controller.property === 'skipPoints' ||
@@ -1440,7 +1522,7 @@ function adjustGUIControls() {
 
 
 
-  if (isCharge) {
+  if (isCharge && params.applyChargeTransformation == false) {
       // use slicing
         params.sliceAxis = 'Z';
         // also refresh the control
@@ -1449,7 +1531,7 @@ function adjustGUIControls() {
         params.sliceWidth = 0.12;
         params.amplitudeScale=0.1;
   }
-  else if (isSpinor) {
+  else if (isSpinor && params.applySpinHalf ==false) {
       // use slicing
         params.sliceAxis = 'Y';
         params.slicePosition = 0;
