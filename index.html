@@ -19,56 +19,63 @@
 <body>
 
 <!-- Info Popup -->
+<!-- Info Popup -->
 <div id="info-popup">
   <div id="info-popup-content">
     <span class="close-button" id="info-close">&times;</span>
     <h2>Simulation Overview</h2>
     <p>
-      This simulation visualizes both the <strong>scalar</strong> and <strong>vector spherical harmonics</strong>, which are essential in describing wave phenomena in elastic solids. In an elastic solid, waves can propagate in different modes, primarily as <em>compressional (longitudinal)</em> and <em>shear (transverse)</em> waves. The scalar spherical harmonics represent scalar fields and are often associated with pressure waves (longitudinal), while vector spherical harmonics are used to describe vector fields like displacement or velocity fields in shear waves (transverse).
+      This simulation visualizes both the <strong>scalar</strong> and <strong>vector spherical harmonics</strong>, which are essential in describing wave phenomena in quantum mechanics and elastic solids. Additionally, it allows for the exploration of <strong>superposition</strong> and <strong>interference</strong> patterns by enabling the visualization of two wave functions simultaneously.
     </p>
     <p>
-      By adjusting the parameters, you can explore how these harmonics represent different wave patterns in an elastic medium, helping to visualize complex phenomena such as wave propagation, interference, and resonance within spherical geometries like those found in geophysics or materials science.
+      By adjusting the parameters for each wave, you can explore how the combination of different quantum states affects the overall wave pattern. This includes observing phenomena such as constructive and destructive interference, which are fundamental concepts in wave mechanics.
+    </p>
+    <p>
+      The simulation also includes advanced transformations such as the <strong>Spin 1/2 Transformation</strong> and the <strong>Charge Transformation</strong>, which modify the wave functions to simulate effects like particle spin and charge distributions. These features provide deeper insights into quantum behaviors and field interactions.
     </p>
 
     <h2>Vector Fields and Colors</h2>
     <p>
-      <strong>Vector Meaning:</strong> When in <em>Vector Harmonic</em> mode, the arrows represent the vector spherical harmonics, which illustrate the orientation and magnitude of vector fields in an elastic solid. These vector fields correspond to displacement directions of particles in the medium:
-    <ul>
-      <li><strong>Transverse Waves (Shear Waves):</strong> Particles move perpendicular to the direction of wave propagation. The vector spherical harmonics capture these movements through their angular dependence.</li>
-      <li><strong>Longitudinal Waves (Compressional Waves):</strong> Particles move parallel to the direction of wave propagation. While scalar spherical harmonics primarily describe these waves, vector harmonics can also represent the associated vector fields.</li>
-    </ul>
+      <strong>Multiple Wave Interactions:</strong> When both waves are enabled, their vector fields and scalar amplitudes combine, allowing you to visualize the resulting interference patterns. The simulation computes the combined effect of the two wave functions on the vector fields and colors, providing an intuitive understanding of how waves interact in space.
     </p>
     <p>
       <strong>Color Explanation:</strong>
     <ul>
-      <li><strong>Amplitude-based coloring:</strong> Colors vary with the amplitude of the wave function or vector magnitude. Higher amplitudes are indicated by warmer colors (reds and yellows), and lower amplitudes by cooler colors (blues and greens).</li>
-      <li><strong>Phase-based coloring:</strong> Colors represent the phase of the wave function, transitioning smoothly across the spectrum (e.g., red to violet) to illustrate the cyclical nature of the wave.</li>
-      <li><strong>Direction-based coloring (Vector Harmonics):</strong> Colors can also represent the direction of vectors, mapping angular directions to hues to provide intuitive visualization of vector orientations.</li>
+      <li><strong>Amplitude-based coloring:</strong> Colors now represent the combined amplitude of both wave functions. This helps in identifying regions of constructive interference (higher amplitude) and destructive interference (lower amplitude).</li>
+      <li><strong>Phase-based coloring:</strong> Colors illustrate the combined phase of the two waves, revealing complex phase relationships and transitions due to wave superposition.</li>
+      <li><strong>Direction-based coloring (Vector Harmonics):</strong> In vector harmonic modes, colors can represent the direction of vectors, mapping angular directions to hues to provide intuitive visualization of vector orientations.</li>
     </ul>
     </p>
 
     <h2>Controls</h2>
-    <p>The GUI on the left allows you to adjust various parameters of the simulation:</p>
+    <p>The GUI allows you to adjust various parameters of the simulation:</p>
     <ul>
-      <li><strong>n:</strong> Principal quantum number (n ≥ 1).</li>
-      <li><strong>l:</strong> Azimuthal quantum number (0 ≤ l ≤ n-1).</li>
-      <li><strong>m:</strong> Magnetic quantum number (-l ≤ m ≤ l).</li>
-      <li><strong>Harmonic Type:</strong> Switch between 'Scalar' and 'Vector' spherical harmonics.</li>
+      <li><strong>Show Second Wave:</strong> Toggle the visualization of a second wave function.</li>
+      <li><strong>Wave Separation:</strong> Adjust the spatial separation between the two waves.</li>
+      <li><strong>n1, l1, m1:</strong> Quantum numbers for the first wave.</li>
+      <li><strong>n2, l2, m2:</strong> Quantum numbers for the second wave.</li>
+      <li><strong>Harmonic Type:</strong> Switch between 'Scalar', 'Magnetic Vector Harmonics', 'Electric Vector Harmonics', 'Spinor Only', and 'Charge Only' modes.</li>
+      <li><strong>Apply Spin 1/2 Transformation:</strong> Enable or disable the spinor transformation to simulate spin effects.</li>
+      <li><strong>Spin 1/2 Mode:</strong> Choose how the spinor transformation is applied (e.g., 'Overlay', 'Spinor Only', 'Charge Only').</li>
+      <li><strong>Apply Charge Transformation:</strong> Enable or disable the charge-based transformation to simulate charge distributions.</li>
+      <li><strong>Charge Mode 1 & 2:</strong> Select 'Plus Charge' or 'Minus Charge' for each wave.</li>
       <li><strong>Amplitude Scale:</strong> Adjusts the scaling of the amplitude for visualization purposes.</li>
       <li><strong>Displacement Scale:</strong> Controls the magnitude of point displacement in the visualization.</li>
       <li><strong>Angular Frequency:</strong> Adjusts the frequency of the time dependence.</li>
       <li><strong>Time Scale:</strong> Adjusts the speed of the animation.</li>
-      <li><strong>Animate Wave:</strong> Toggles the animation of the wave function.</li>
+      <li><strong>Animate Wave:</strong> Toggles the animation of the wave functions.</li>
       <li><strong>Color Scheme:</strong> Choose between coloring based on amplitude or phase.</li>
       <li><strong>Slice Axis:</strong> Choose an axis along which to slice the visualization.</li>
       <li><strong>Slice Position:</strong> Adjusts the position of the slicing plane.</li>
+      <li><strong>Slice Width:</strong> Controls the thickness of the slicing plane.</li>
       <li><strong>Point Size:</strong> Adjusts the size of the points in the point cloud.</li>
       <li><strong>Grid Extent:</strong> Adjusts the size of the grid.</li>
-      <li><strong>Scaling Factor:</strong> Adjusts the scaling factor for the grid.</li>
-      <li><strong>Vector Scale:</strong> Adjusts the scaling of the vector field arrows (only in 'Vector' mode).</li>
+      <li><strong>Spherical Zoomout:</strong> Adjusts the scaling factor for the grid.</li>
+      <li><strong>Vector Scale:</strong> Adjusts the scaling of the vector field arrows (only in 'Vector' modes).</li>
       <li><strong>Skip Points:</strong> Adjusts the sampling rate for vector field visualization.</li>
       <li><strong>Threshold:</strong> Sets the minimum vector length to visualize.</li>
-      <li><strong>Highlight Random Point:</strong> Randomly highlights a point to track its motion.</li>
+      <li><strong>Number of Highlighted Points:</strong> Adjusts the number of points to highlight.</li>
+      <li><strong>Trail Length:</strong> Sets the length of the trail for highlighted points.</li>
       <li><strong>Info:</strong> Opens this information popup.</li>
     </ul>
 
@@ -109,8 +116,9 @@
       <li>
         <strong>Vector Spherical Harmonics:</strong> Used to represent vector fields on the sphere, defined in terms of scalar spherical harmonics and their gradients:
         \[
-        \mathbf{Y}_{lm} = r \nabla Y_l^m(\theta, \phi)
+        \mathbf{Y}_{lm} = \mathbf{r} Y_l^m(\theta, \phi)
         \]
+        In the simulation, both <em>Magnetic</em> and <em>Electric</em> vector harmonics are visualized, representing different modes of vector fields.
       </li>
       <li>
         <strong>Spherical Bessel Functions:</strong> \( j_n(x) \) appear in solutions to the radial part of wave equations in spherical coordinates:
@@ -120,11 +128,24 @@
         where \( J_{n + 1/2}(x) \) is a Bessel function of the first kind.
       </li>
       <li>
+        <strong>Superposition Principle:</strong> When two wave functions \( \Psi_1 \) and \( \Psi_2 \) are combined, the resulting wave function is:
+        \[
+        \Psi_{\text{total}} = \Psi_1 + \Psi_2
+        \]
+        This principle allows the simulation to compute the combined effects of two wave functions, leading to interference patterns.
+      </li>
+      <li>
+        <strong>Spin 1/2 Transformation:</strong> Simulates the effect of spin on the wave function using quaternion rotations. The transformation applies a rotation operator to the position vectors, representing the spinor behavior of particles with spin 1/2.
+      </li>
+      <li>
+        <strong>Charge Transformation:</strong> Modifies the wave function to simulate charge distributions, applying scaling factors based on distance and wave parameters to represent electrostatic effects.
+      </li>
+      <li>
         <strong>Time Dependence:</strong> Incorporated using a phase factor \( e^{-i \omega t} \), where \( \omega \) is the angular frequency.
       </li>
     </ul>
     <p>
-      By combining these mathematical constructs, the simulation calculates the probability amplitudes and vector fields associated with different quantum states, allowing for a rich visualization of quantum mechanical behaviors in an elastic solid context.
+      By combining these mathematical constructs, including superposition and transformations, the simulation calculates complex wave behaviors, offering insights into quantum mechanics and wave phenomena.
     </p>
     <p>
       For more detailed mathematical background, you can refer to:
@@ -134,12 +155,18 @@
       <li><a href="https://en.wikipedia.org/wiki/Hydrogen_atom#Wavefunction" target="_blank">Hydrogen Atom Wavefunction</a></li>
       <li><a href="https://en.wikipedia.org/wiki/Vector_spherical_harmonics" target="_blank">Vector Spherical Harmonics</a></li>
       <li><a href="https://en.wikipedia.org/wiki/Bessel_function#Spherical_Bessel_functions:_jn,_yn" target="_blank">Spherical Bessel Functions</a></li>
+      <li><a href="https://en.wikipedia.org/wiki/Spinor" target="_blank">Spinors in Quantum Mechanics</a></li>
+      <li><a href="https://en.wikipedia.org/wiki/Quantum_superposition" target="_blank">Quantum Superposition</a></li>
     </ul>
     </p>
   </div>
 </div>
+<div id="user-message"
+     style="position: absolute; top: 10px; left: 300px;
+     background-color: rgba(255,255,255,0.8); padding: 10px; display: none;"></div>
 
 <div id="gui-container"></div>
+<div id="quantum-gui-container"></div>
 <script src="script.js"></script>
 
 </body>

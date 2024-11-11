@@ -1,8 +1,20 @@
 // Declare 'params' as a global variable
 let params = {};
-
+let torusParams= {};
 // Begin waveFunctions.js content
-
+// At the top of your file
+const tempVector = new THREE.Vector3();
+const tempVector1 = new THREE.Vector3();
+const tempVector2 = new THREE.Vector3();
+const tempVector3 = new THREE.Vector3();
+const tempVector4 = new THREE.Vector3();
+let displacementVector1 = new THREE.Vector3(0, 0, 0);
+let displacementVector2 = new THREE.Vector3(0, 0, 0);
+let displacementVector = new THREE.Vector3(0, 0, 0);
+const tempQuaternion1 = new THREE.Quaternion();
+const tempQuaternion2 = new THREE.Quaternion();
+const tempQuaternion3 = new THREE.Quaternion();
+const tempColor = new THREE.Color();
 // Factorial function with memoization to improve performance
 let factorialCache = {};
 
@@ -94,11 +106,33 @@ function derivative_associatedLegendreP_theta(l, m, theta) {
 }
 
 // Spherical Harmonic Y_l^m(theta, phi)
-function computeSphericalHarmonic(l, m, P_lm, theta, phi, t) {
-    const normalization = Math.sqrt(
+let sphericalHarmonicCache = {};
+
+const normalizationCache = {};
+
+function getNormalization(l, m) {
+    const key = `${l},${m}`;
+    if (normalizationCache[key]) {
+        return normalizationCache[key];
+    }
+    const norm = Math.sqrt(
         ((2 * l + 1) / (4 * Math.PI)) *
         (factorial(l - Math.abs(m)) / factorial(l + Math.abs(m)))
-    ); // Normalization constant
+    );
+    normalizationCache[key] = norm;
+    return norm;
+}
+function computeSphericalHarmonic(l, m, P_lm, theta, phi, t) {
+    // Quantize t and phi to reduce cache size
+    // const tKey = t.toFixed(4);
+    //  const phiKey = phi.toFixed(4);
+    //  const key = `${l},${m},${theta.toFixed(4)},${phiKey},${tKey}`;
+
+    //  if (sphericalHarmonicCache[key]) {
+    //      return sphericalHarmonicCache[key];
+    //  }
+
+    const normalization = getNormalization(l, m);
 
     let Y_lm = normalization * P_lm; // Compute the scalar part
 
@@ -110,6 +144,8 @@ function computeSphericalHarmonic(l, m, P_lm, theta, phi, t) {
     } else {
         Y_lm *= Math.cos(-params.omega * t); // For m = 0
     }
+
+    //  sphericalHarmonicCache[key] = Y_lm;
     return Y_lm;
 }
 
@@ -141,7 +177,16 @@ function generalizedLaguerreL(n, alpha, x) {
 }
 
 // Radial wave function R_{nl}(r)
+let radialWaveFunctionCache = {};
+
 function radialWaveFunction(n, l, r) {
+    const rKey = r.toFixed(4);
+    const key = `${n},${l},${rKey}`;
+
+    //  if (radialWaveFunctionCache[key]) {
+    //       return radialWaveFunctionCache[key];
+    //  }
+
     const Z = 1; // Atomic number for hydrogen
     const a0 = 1; // Bohr radius in atomic units
     const rho = (2 * Z * r) / (n * a0); // Scaled radial coordinate
@@ -169,6 +214,7 @@ function radialWaveFunction(n, l, r) {
     // Compute the radial wave function
     const radialPart = normalization * Math.exp(-rho / 2) * rho ** l * laguerre;
 
+  //  radialWaveFunctionCache[key] = radialPart;
     return radialPart;
 }
 
@@ -183,32 +229,42 @@ function sphericalBessel_jn(n, x) {
         return sphericalBesselCache[key];
     }
 
+    let result;
+
     if (n === 0) {
-        const result = Math.sin(x) / x; // j_0(x)
-        sphericalBesselCache[key] = result;
-        return result;
+        result = Math.sin(x) / x; // j_0(x)
     } else if (n === 1) {
-        const result = (Math.sin(x) / (x * x)) - (Math.cos(x) / x); // j_1(x)
-        sphericalBesselCache[key] = result;
-        return result;
-    } else {
-        // Use recurrence relation for j_n(x)
+        result = (Math.sin(x) / (x * x)) - (Math.cos(x) / x); // j_1(x)
+    } else if (n === -1) {
+        result = Math.cos(x) / x; // j_{-1}(x)
+    } else if (n > 1) {
+        // Use upward recurrence for n > 1
         let jn_minus2 = Math.sin(x) / x; // j_0(x)
         let jn_minus1 = (Math.sin(x) / (x * x)) - (Math.cos(x) / x); // j_1(x)
-        let jn;
         for (let l = 2; l <= n; l++) {
-            jn = ((2 * l - 1) / x) * jn_minus1 - jn_minus2;
+            result = ((2 * l - 1) / x) * jn_minus1 - jn_minus2;
             jn_minus2 = jn_minus1;
-            jn_minus1 = jn;
+            jn_minus1 = result;
         }
-        sphericalBesselCache[key] = jn;
-        return jn;
+    } else {
+        // Use downward recurrence for n < -1
+        // Starting from n = -1
+        let jn_plus1 = Math.cos(x) / x; // j_{-1}(x)
+        let jn = Math.sin(x) / x; // j_0(x)
+        for (let l = -1; l >= n; l--) {
+            result = ((2 * l + 1) / x) * jn - jn_plus1;
+            jn_plus1 = jn;
+            jn = result;
+        }
     }
+
+    sphericalBesselCache[key] = result;
+    return result;
 }
+
 
 // Derivative of rho * j_n(rho) with respect to rho
 let derivativeRhoZnCache = {};
-
 function derivative_rho_zn(n, rho) {
     const key = `${n},${rho.toFixed(4)}`;
     if (derivativeRhoZnCache[key]) {
@@ -216,28 +272,49 @@ function derivative_rho_zn(n, rho) {
     }
 
     const jn = sphericalBessel_jn(n, rho);
-    const jn_minus1 = sphericalBessel_jn(n - 1, rho);
-    const result = rho * jn_minus1 - n * jn;
+    let result;
+
+    if (n === 0) {
+        // Special case for n = 0
+        const jn_minus1 = Math.cos(rho) / rho; // j_{-1}(rho) = cos(rho)/rho
+        result = rho * jn_minus1;
+    } else {
+        const jn_minus1 = sphericalBessel_jn(n - 1, rho);
+        result = rho * jn_minus1 - n * jn;
+    }
 
     derivativeRhoZnCache[key] = result;
     return result;
 }
-function computeVectorAtPoint(n, m, data, t) {
-    const r = data.r;
-    const theta = data.theta;
-    const phi = data.phi;
+
+let vectorAtPointCache = {};
+
+function computeVectorAtPoint(l, m, data, t, waveNumber) {
+    // waveNumber: 1 or 2, indicating which wave function data to use
+
+    //const r = data[`r${waveNumber}`];
+   // const theta = data[`theta${waveNumber}`];
+    const phi = data[`phi${waveNumber}`];
 
     const epsilon = 1e-5; // Small value to avoid division by zero
     const maxVectorMagnitude = 1.0; // Maximum allowed vector magnitude
 
-    const rho = data.rho;
+    const rho = data[`rho${waveNumber}`];
     if (rho < epsilon) {
         return new THREE.Vector3(0, 0, 0); // Return zero vector if rho is too small
     }
 
+    // Construct a cache key based on parameters
+    //  const tKey = t.toFixed(4);
+    //    const key = `${n},${m},${r.toFixed(4)},${theta.toFixed(4)},${phi.toFixed(4)},${tKey},${waveNumber}`;
+
+    //   if (vectorAtPointCache[key]) {
+    //       return vectorAtPointCache[key];
+    //    }
+
     // Retrieve precomputed values
-    const P_n_m = data.P_lm; // Use precomputed P_n_m
-    const dP_n_m_dtheta = data.dP_lm_dtheta; // Use precomputed derivative
+    const P_lm = data[`P_lm${waveNumber}`]; // Use precomputed P_lm
+    const dP_lm_dtheta = data[`dP_lm_dtheta${waveNumber}`]; // Use precomputed derivative
 
     // Introduce time dependence through phase
     const phase = m * phi - params.omega * t;
@@ -246,12 +323,17 @@ function computeVectorAtPoint(n, m, data, t) {
     const cos_m_phi = Math.cos(phase);
     const sin_m_phi = Math.sin(phase);
 
-    let sin_theta = data.sinTheta;
+    let sin_theta = data[`sinTheta${waveNumber}`];
     if (Math.abs(sin_theta) < epsilon) {
         sin_theta = epsilon; // Avoid division by zero
     }
 
-    let N_r = 0, N_theta = 0, N_phi = 0;
+    let N_r = 0,
+        N_theta = 0,
+        N_phi = 0;
+
+    const jn = data[`jn${waveNumber}`];
+    const djn_drho = data[`djn_drho${waveNumber}`];
 
     if (params.harmonicType === 'Magnetic Vector Harmonics') {
         // Magnetic Vector Spherical Harmonics
@@ -260,26 +342,22 @@ function computeVectorAtPoint(n, m, data, t) {
         N_r = 0;
 
         // Theta component
-        N_theta = (data.jn / sin_theta) * m * P_n_m * sin_m_phi;
+        N_theta = (jn / sin_theta) * m * P_lm * sin_m_phi;
 
         // Phi component
-        N_phi = -data.jn * dP_n_m_dtheta * cos_m_phi;
+        N_phi = -jn * dP_lm_dtheta * cos_m_phi;
 
     } else if (params.harmonicType === 'Electric Vector Harmonics') {
         // Electric Vector Spherical Harmonics
 
-        // Compute derivative of spherical Bessel function
-        const jn = data.jn;
-        const djn_drho = data.djn_drho;
-
         // Radial component
-        N_r = n * (n + 1) * (jn / rho) * P_n_m * cos_m_phi;
+        N_r = l * (l + 1) * (jn / rho) * P_lm * cos_m_phi;
 
         // Theta component
-        N_theta = djn_drho * dP_n_m_dtheta * cos_m_phi;
+        N_theta = djn_drho * dP_lm_dtheta * cos_m_phi;
 
         // Phi component
-        N_phi = djn_drho * (m * P_n_m / sin_theta) * sin_m_phi;
+        N_phi = djn_drho * (m * P_lm / sin_theta) * sin_m_phi;
 
     } else {
         // For other harmonic types, return zero vector
@@ -287,23 +365,27 @@ function computeVectorAtPoint(n, m, data, t) {
     }
 
     // Convert to Cartesian coordinates using precomputed trigonometric values
-    const sin_theta_cos_phi = sin_theta * data.cosPhi;
-    const sin_theta_sin_phi = sin_theta * data.sinPhi;
-    const cos_theta = data.cosTheta;
+    const sinTheta = data[`sinTheta${waveNumber}`];
+    const cosTheta = data[`cosTheta${waveNumber}`];
+    const sinPhi = data[`sinPhi${waveNumber}`];
+    const cosPhi = data[`cosPhi${waveNumber}`];
 
-    const e_r = new THREE.Vector3(
+    const sin_theta_cos_phi = sinTheta * cosPhi;
+    const sin_theta_sin_phi = sinTheta * sinPhi;
+
+    const e_r = tempVector1.set(
         sin_theta_cos_phi,
         sin_theta_sin_phi,
-        cos_theta
-    ); // Radial unit vector
-    const e_theta = new THREE.Vector3(
-        cos_theta * data.cosPhi,
-        cos_theta * data.sinPhi,
-        -sin_theta
+        cosTheta
+    );
+    const e_theta= tempVector2.set(
+        cosTheta * cosPhi,
+        cosTheta * sinPhi,
+        -sinTheta
     ); // Theta unit vector
-    const e_phi = new THREE.Vector3(-data.sinPhi, data.cosPhi, 0); // Phi unit vector
+    const e_phi = tempVector3.set(-sinPhi, cosPhi, 0); // Phi unit vector
 
-    const N_vector = new THREE.Vector3(0, 0, 0);
+    const N_vector = tempVector4.set(0, 0, 0);
     N_vector.addScaledVector(e_r, N_r);
     N_vector.addScaledVector(e_theta, N_theta);
     N_vector.addScaledVector(e_phi, N_phi);
@@ -311,9 +393,11 @@ function computeVectorAtPoint(n, m, data, t) {
     // Cap the vector magnitude to prevent excessively large vectors
     N_vector.clampLength(0, maxVectorMagnitude);
 
+    // Cache the result
+    //   vectorAtPointCache[key] = N_vector.clone();
+
     return N_vector;
 }
-
 
 function clearCaches() {
     // Clear caches
@@ -323,6 +407,9 @@ function clearCaches() {
     sphericalBesselCache = {};
     derivativePthetaCache = {};
     derivativeRhoZnCache = {};
+    radialWaveFunctionCache = {};
+    sphericalHarmonicCache = {};
+    vectorAtPointCache = {};
 }
 
 // End of waveFunctions.js content
@@ -434,6 +521,11 @@ function highlightRandomPoints() {
 // Function to recreate objects when parameters change
 function recreateObjects() {
     // Remove existing point cloud
+    if ((params.harmonicType === 'Magnetic Vector Harmonics' || params.harmonicType === 'Electric Vector Harmonics') && (params.l === 0 || params.l2 === 0)) {
+        updateUserMessage('No vector field can be visualized for l = 0 in magnetic or electric vector harmonics.');
+    } else {
+        updateUserMessage(''); // Clear message when not applicable
+    }
     if (pointCloud) {
         scene.remove(pointCloud);
         pointCloud.geometry.dispose();
@@ -488,172 +580,196 @@ function createObjects() {
         computeAndVisualizeVectorField(); // Compute and visualize the vector field
     }
 }
-
-// Function to compute and visualize the vector field
 function computeAndVisualizeVectorField() {
-  const positionsArray = pointCloud.geometry.attributes.position.array;
-  const numPoints = positionsArray.length / 3;
+    const positionsArray = pointCloud.geometry.attributes.position.array;
+    const numPoints = positionsArray.length / 3;
 
-  const pointData = pointCloud.geometry.userData.pointData;
-  const n = params.n;
-  const m = params.m;
+    const pointData = pointCloud.geometry.userData.pointData;
+    const n = params.n;
+    const l = params.l;
+    const m = params.m;
+    const n2 = params.n2;
+    const l2 = params.l2;
+    const m2 = params.m2;
+    const showSecondWave = params.showSecondWave;
 
-  arrowGroup = new THREE.Group();
-  arrowHelpers = [];
-  arrowIndices = [];
+    arrowGroup = new THREE.Group();
+    arrowHelpers = [];
+    arrowIndices = [];
 
-  let skip = params.skipPoints;
-  // Show all vectors if slicing is applied
-  if (params.sliceAxis !== 'None') {
-    skip = 1;
-  }
+    const threshold = params.threshold;
+    const scaleFactor = params.vectorScale;
 
-  const threshold = params.threshold;
-  const scaleFactor = params.vectorScale;
-  const maxVectorMagnitude = 1.0; // Should match the one in computeVectorAtPoint
+    for (let i = 0; i < numPoints; i++) {
+        const data = pointData[i];
+        const x = data.x0;
+        const y = data.y0;
+        const z = data.z0;
 
-  const spacing = params.skipPoints * 0.25; // Use 'skipPoints' to control the grid spacing
-
-  for (let i = 0; i < numPoints; i++) {
-    const data = pointData[i];
-    const x = data.x0;
-    const y = data.y0;
-    const z = data.z0;
-
-    // Check if the point is evenly spaced based on grid coordinates
-    if (
-        Math.abs(x % spacing) > 0.01 ||
-        Math.abs(y % spacing) > 0.01 ||
-        Math.abs(z % spacing) > 0.01
-    ) {
-      continue; // Skip this point if it does not align with the desired grid spacing
-    }
-
-    // Compute the vector at this point
-    const vector = computeVectorAtPoint(n, m, data, params.t);
-
-    const magnitude = vector.length();
-    const length = magnitude * scaleFactor;
-
-    // Skip vectors below the threshold
-    if (length > threshold) {
-      const dir = vector.clone().normalize();
-      const origin = new THREE.Vector3(x, y, z);
-
-      // Compute color based on vector direction
-      const phi = data.phi;
-      const normalizedPhi = (phi + Math.PI) / (2 * Math.PI); // Normalize phi to [0,1]
-      const hue = normalizedPhi; // Hue varies from 0 to 1 based on phi
-      const color = new THREE.Color();
-      color.setHSL(hue, 1, 0.5);
-
-      // Create arrow helper with the computed direction, origin, length, and color
-      const arrowHelper = new THREE.ArrowHelper(
-          dir,
-          origin,
-          length,
-          color.getHex()
-      );
-
-      // Apply slicing
-      let visible = true;
-
-      if (params.sliceAxis !== 'None') {
-          const sliceDelta = params.sliceWidth;
-        const sliceValue = params.slicePosition;
-        switch (params.sliceAxis) {
-          case 'X':
-            visible = Math.abs(x - sliceValue) < sliceDelta;
-            break;
-          case 'Y':
-            visible = Math.abs(y - sliceValue) < sliceDelta;
-            break;
-          case 'Z':
-            visible = Math.abs(z - sliceValue) < sliceDelta;
-            break;
+        // Determine if the point is within the slicing plane
+        let inSlicePlane = false;
+        if (params.sliceAxis !== 'None') {
+            const sliceValue = params.slicePosition;
+            const sliceDelta = params.sliceWidth;
+            switch (params.sliceAxis) {
+                case 'X':
+                    inSlicePlane = Math.abs(x - sliceValue) < sliceDelta;
+                    break;
+                case 'Y':
+                    inSlicePlane = Math.abs(y - sliceValue) < sliceDelta;
+                    break;
+                case 'Z':
+                    inSlicePlane = Math.abs(z - sliceValue) < sliceDelta;
+                    break;
+            }
         }
-      }
 
-      arrowHelper.visible = visible;
+        // If the point is not in the slicing plane, apply skipping logic
+        if (!inSlicePlane && params.skipPoints > 1) {
+            if (i % params.skipPoints !== 0) {
+                continue; // Skip this point
+            }
+        } else {
+            if (params.skipPoints > 1) {
+                if (
+                    (100 * x) % params.skipPoints !== 0 ||
+                    (100 * y) % params.skipPoints !== 0 ||
+                    (100 * z) % params.skipPoints !== 0
+                ) {
+                    continue; // Skip this point
+                }
+            }
+        }
 
-      arrowGroup.add(arrowHelper);
-      arrowHelpers.push(arrowHelper);
-      arrowIndices.push(i); // Store the index corresponding to this arrow
+        // Compute the vector at this point for the first wave
+        const vector1 = computeVectorAtPoint(l, m, data, params.t, 1);
+
+        // Initialize the combined vector
+        let vector = vector1.clone();
+
+        // If the second wave is enabled, compute the vector for the second wave and add it
+        if (showSecondWave) {
+            const vector2 = computeVectorAtPoint(l2, m2, data, params.t, 2);
+            vector.add(vector2);
+        }
+
+        const magnitude = vector.length();
+        let length = magnitude * scaleFactor* params.overallScale ;
+
+        // Optionally scale up arrows in the slicing plane
+        if (inSlicePlane) {
+            length *= 2; // Adjust this factor as needed
+        }
+
+        // Decide whether to create an arrow at this point
+        if (length > threshold || inSlicePlane) {
+            const dir = vector.clone().normalize();
+            const origin = new THREE.Vector3(x, y, z);
+
+            // Compute color based on vector direction
+            const phi1 = data.phi1;
+            let phi2 = 0;
+            if (showSecondWave) {
+                phi2 = data.phi2;
+            }
+            const combinedPhi = (phi1 + phi2) / (showSecondWave ? 2 : 1);
+            const normalizedPhi = (combinedPhi + Math.PI) / (2 * Math.PI); // Normalize to [0,1]
+            const hue = normalizedPhi; // Hue varies from 0 to 1 based on phi
+            const color = new THREE.Color();
+            color.setHSL(hue, 1, 0.5);
+
+            // Create arrow helper with the computed direction, origin, length, and color
+            const arrowHelper = new THREE.ArrowHelper(
+                dir,
+                origin,
+                length,
+                color.getHex()
+            );
+
+            // Set visibility based on slicing
+            let visible = true;
+            if (params.sliceAxis !== 'None') {
+                visible = inSlicePlane; // Only show arrows in the slicing plane
+            }
+
+            arrowHelper.visible = visible;
+
+            arrowGroup.add(arrowHelper);
+            arrowHelpers.push(arrowHelper);
+            arrowIndices.push(i); // Store the index corresponding to this arrow
+        }
     }
-  }
 
-  scene.add(arrowGroup);
-}
-function computeKernelQuaternion(originalPosition, radialUnitVector) {
-    let angle = computeChargeStrength(originalPosition);
-
-    // Compute an axis orthogonal to the radial unit vector
-    let rotationAxis = new THREE.Vector3();
-    const xAxis = new THREE.Vector3(1, 0, 0);
-    rotationAxis.crossVectors(radialUnitVector, xAxis);
-
-    // If radial vector is parallel to xAxis, use yAxis instead
-    if (rotationAxis.lengthSq() < 1e-8) {
-        const yAxis = new THREE.Vector3(0, 1, 0);
-        rotationAxis.crossVectors(radialUnitVector, yAxis);
-    }
-    rotationAxis.normalize();
-
-    // Create the kernel rotation quaternion k(r)
-    const kernelQuaternion = new THREE.Quaternion();
-    kernelQuaternion.setFromAxisAngle(rotationAxis, angle);
-
-    return kernelQuaternion;
+    scene.add(arrowGroup);
 }
 
-function exponentialSmoothing(r, radius, width) {
-  return Math.exp(-((r - radius) ** 2) / (2 * width ** 2));
+
+function transformChargeMultiple(originalPosition, spheres) {
+    const transformedPositions = [];
+    const scalingFactors = [];
+
+    let i = 0;
+    spheres.forEach(sphere => {
+        i += 1;
+        let chargeMode = params.chargeMode;
+        if (i>1) {
+            chargeMode = params.chargeMode2;
+        }
+        // Compute displacement from sphere to point
+        const displacement = originalPosition.clone().sub(sphere.center);
+        const r = displacement.length();
+
+        // Define wave parameters
+        const k =  4 * Math.PI / params.waveNumber;  // Wave number
+        const omega = params.omega;              // Angular frequency
+
+        // Determine pulsation direction and calculate scaling factor
+        let scalingFactor = 1.0;
+        let stretch = 0.5 / (1 + r);
+
+        if (chargeMode === 'Plus Charge') {
+            // Outward pulsation
+            scalingFactor = 1.0 + stretch * Math.sin(k * r - omega * sphere.phase);
+        } else {
+            // Inward pulsation
+            scalingFactor = 1.0 + stretch * Math.sin(k * r + omega * sphere.phase);
+        }
+
+        // Ensure scaling factor remains positive and within bounds
+        scalingFactor = Math.max(0.01, Math.min(1.5, scalingFactor));
+
+        // Apply the scaling to the displacement
+        const newDisplacement = displacement.clone().multiplyScalar(scalingFactor);
+
+        // Compute the new transformed position
+        const newPosition = sphere.center.clone().add(newDisplacement);
+
+        transformedPositions.push(newPosition);
+        scalingFactors.push(scalingFactor);
+    });
+
+    // Combine the transformed positions by averaging
+    const combinedPosition = new THREE.Vector3(0, 0, 0);
+    transformedPositions.forEach(pos => {
+        combinedPosition.add(pos);
+    });
+    combinedPosition.divideScalar(spheres.length);
+
+    // Average the scaling factors
+    const totalScalingFactor = scalingFactors.reduce((sum, val) => sum + val, 0) / spheres.length;
+
+    return { newPosition: combinedPosition, scalingFactor: totalScalingFactor };
 }
 
-function computeTimeQuaternion(radialUnitVector, phase) {
-    // Create the time-based rotation quaternion q(t)
-    const timeQuaternion = new THREE.Quaternion();
-    timeQuaternion.setFromAxisAngle(radialUnitVector, phase);
 
-    return timeQuaternion;
-}
-function transformCharge(originalPosition) {
-    // Compute radial distance from the origin
-    const r = originalPosition.length();
 
-    // Define wave parameters
-    const k =  4*Math.PI / params.waveNumber;  // Wave number, adjust to control wavelength
-    const omega = params.timeScale ;           // Angular frequency, adjust speed as needed
-
-    // Determine pulsation direction and calculate scaling factor
-    let scalingFactor=1;
-    // function if distance, it should diminish the further away it is
-    let stretch = 0.5 / (1 + r);
-
-    if (params.chargeMode === 'Plus Charge') {
-        // Outward pulsation
-        scalingFactor = 1.0 + stretch * Math.sin(k * r - omega * params.phase);
-    } else {
-        // Inward pulsation
-        scalingFactor = 1.0 + stretch * Math.sin(k * r + omega * params.phase);
-    }
-  //  scalingFactor= scalingFactor*params.displacementScale;
-    // Ensure scaling factor remains positive
-    scalingFactor = Math.max(0.01, scalingFactor);
-    // also make sure it doesn't go over 2
-    if (scalingFactor >1.5) {
-        scalingFactor = 1.5;
-    }
-
-    // Apply the scaling to the original position to create a pulsating effect
-    const newPosition = originalPosition.clone().multiplyScalar(scalingFactor);
-
-    return {newPosition, scalingFactor};
-}
-
-// Function to create the point cloud representing the scalar spherical harmonic field
 function createPointCloud() {
-  const gridSize = params.extent; // Half-size of the grid
+    const waveShift = params.showSecondWave ? params.waveSeparation / 2 : 0;
+
+// Compute grid boundaries based on wave separation
+    const gridXMin = -params.extent - waveShift;
+    const gridXMax = params.extent + waveShift;
+
   const gridStep = 0.25; // Distance between grid points
   const positions = []; // Array to store positions of points
   const colors = []; // Array to store colors of points
@@ -662,9 +778,9 @@ function createPointCloud() {
   const pointData = []; // Array to store per-point data
 
   // Generate a 3D grid of points
-  for (let x = -gridSize; x <= gridSize; x += gridStep) {
-    for (let y = -gridSize; y <= gridSize; y += gridStep) {
-      for (let z = -gridSize; z <= gridSize; z += gridStep) {
+  for (let x = gridXMin; x <= gridXMax; x += gridStep) {
+    for (let y = -params.extent; y <= params.extent; y += gridStep) {
+      for (let z = -params.extent; z <= params.extent; z += gridStep) {
         positions.push(x, y, z);
         colors.push(1, 1, 1); // Initial color (will be updated)
         sizes.push(params.pointSize); // Initial size (will be updated)
@@ -690,22 +806,18 @@ function createPointCloud() {
     }
   }
 
-  const pointCount = positions.length / 3;
-
   const positionsArray = new Float32Array(positions);
   const colorsArray = new Float32Array(colors);
   const sizesArray = new Float32Array(sizes);
   const alphasArray = new Float32Array(alphas);
 
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(positionsArray, 3)
-  );
+  geometry.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(colorsArray, 3));
   geometry.setAttribute('size', new THREE.BufferAttribute(sizesArray, 1));
   geometry.setAttribute('alpha', new THREE.BufferAttribute(alphasArray, 1));
-    const vertexShader = `
+
+  const vertexShader = `
     attribute float size;
     attribute vec3 color;
     attribute float alpha;
@@ -720,7 +832,7 @@ function createPointCloud() {
     }
   `;
 
-    const fragmentShader = `
+  const fragmentShader = `
     varying vec3 vColor;
     varying float vAlpha;
 
@@ -736,15 +848,14 @@ function createPointCloud() {
     }
   `;
 
-
-    const material = new THREE.ShaderMaterial({
-        vertexShader: vertexShader,
-        fragmentShader: fragmentShader,
-        transparent: true,
-        depthTest: true,
-        depthWrite: false,
-        blending: THREE.NormalBlending,
-    });
+  const material = new THREE.ShaderMaterial({
+    vertexShader: vertexShader,
+    fragmentShader: fragmentShader,
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+  });
 
   pointCloud = new THREE.Points(geometry, material);
 
@@ -755,297 +866,602 @@ function createPointCloud() {
     originalPositions: positionsArray.slice(),
     pointData: pointData, // Store per-point data
   };
-
-
 }
-// Modify precomputeWavefunctionData to compute the derivative of the spherical Bessel function
+
+
 function precomputeWavefunctionData() {
-    const pointData = pointCloud.geometry.userData.pointData;
-    const n = params.n;
-    const l = params.l;
-    const m = params.m;
-    const scale = params.scale;
-
-    for (let i = 0; i < pointData.length; i++) {
-        const data = pointData[i];
-        const cosTheta = data.cosTheta;
-        const theta = data.theta;
-        const r_scaled = data.r * scale;
-
-        // Compute and store associated Legendre polynomial P_l^m(cosTheta)
-        data.P_lm = associatedLegendreP(l, m, cosTheta);
-
-        // Compute and store derivative of P_l^m with respect to theta
-        data.dP_lm_dtheta = derivative_associatedLegendreP_theta(l, m, theta);
-
-        // Compute and store trigonometric values
-        data.sinTheta = Math.sin(theta);
-        data.cosTheta = cosTheta;
-        data.sinPhi = Math.sin(data.phi);
-        data.cosPhi = Math.cos(data.phi);
-
-        // Compute and store radial wave function R_nl(r_scaled)
-        data.R_nl = radialWaveFunction(n, l, r_scaled);
-
-        // Compute and store spherical Bessel functions
-        const k = 1; // Wave number (can be adjusted)
-        const rho = k * data.r;
-        data.rho = rho;
-        if (rho > 1e-5) {
-            data.jn = sphericalBessel_jn(n, rho);
-            data.jn_plus1 = sphericalBessel_jn(n + 1, rho); // For derivative
-            data.djn_drho = (n / rho) * data.jn - data.jn_plus1; // Derivative of jn with respect to rho
-            data.derivative_rhoz_n = derivative_rho_zn(n, rho);
-        } else {
-            data.jn = 0;
-            data.djn_drho = 0;
-            data.derivative_rhoz_n = 0;
-        }
-    }
-}
-
-// Function to apply the spin 1/2 transformation to a position using quaternions
-function spinHalfTransform(originalPosition, timeQuaternion, inverseTimeQuaternion) {
-  const radius = originalPosition.length(); // Distance from the origin
-  let kernelRotationAngle = 0; // Rotation angle for the kernel
-  const angle = (params.maxKernelAngle / 180.0) * Math.PI; // Convert max angle to radians
-  const power = params.decayPower; // Decay power for the kernel function
-
-  // Original kernel function: Decaying rotation angle with distance
-  const adjustedRadius = Math.max(radius, 0);
-  // Fraction decreases with distance using a power function
-  const fraction = 1 / Math.pow(adjustedRadius + 1, power);
-  kernelRotationAngle = angle * fraction;
-
-  // Kernel rotation quaternion k(r) rotating around X-axis
-  const kernelQuaternion = new THREE.Quaternion();
-  kernelQuaternion.setFromAxisAngle(
-      new THREE.Vector3(1, 0, 0), // Rotation axis (X-axis)
-      kernelRotationAngle          // Rotation angle based on kernel
-  );
-
-  // Combined rotation: q(t) * k(r) * q⁻¹(t)
-  const combinedQuaternion = new THREE.Quaternion();
-  combinedQuaternion.multiplyQuaternions(timeQuaternion, kernelQuaternion);
-  combinedQuaternion.multiply(inverseTimeQuaternion);
-
-  // Apply the combined rotation to the original position
-  const newPosition = originalPosition.clone().applyQuaternion(combinedQuaternion);
-
-  return { newPosition, combinedQuaternion };
-}
-
-function updatePointCloud() {
-
-  const positionAttribute = pointCloud.geometry.attributes.position;
-  const colorAttribute = pointCloud.geometry.attributes.color;
-  const sizeAttribute = pointCloud.geometry.attributes.size;
-  const alphaAttribute = pointCloud.geometry.attributes.alpha;
-  const pointCount = positionAttribute.count;
-
+  const pointData = pointCloud.geometry.userData.pointData;
   const n = params.n;
   const l = params.l;
   const m = params.m;
-  const pointData = pointCloud.geometry.userData.pointData;
+  const n2 = params.n2;
+  const l2 = params.l2;
+  const m2 = params.m2;
+  const scale = params.scale;
+  const waveSeparation = params.waveSeparation;
+  const showSecondWave = params.showSecondWave;
 
-  // Time-based rotation quaternion q(t) around Y-axis for spin 1/2
-  const timeQuaternion = new THREE.Quaternion();
-  timeQuaternion.setFromAxisAngle(
-      new THREE.Vector3(0, 1, 0), // Rotation axis (Y-axis)
-      params.phase                // Rotation angle (phase)
-  );
 
-  // Inverse of q(t), which is q⁻¹(t) or conjugate in quaternion terms
-  const inverseTimeQuaternion = timeQuaternion.clone().conjugate();
+  const k = 1; // Wave number (can be adjusted)
 
-  for (let i = 0; i < pointCount; i++) {
+  for (let i = 0; i < pointData.length; i++) {
     const data = pointData[i];
-    const x0 = data.x0;
+
+    const halfWaveSeparation = waveSeparation / 2;
+    // Original positions for the first wave function
+    const x0 = data.x0- halfWaveSeparation;
     const y0 = data.y0;
     const z0 = data.z0;
 
-    const P_lm = data.P_lm;
-    const R_nl = data.R_nl;
+    // Shifted positions for the second wave function
+    const xShifted = x0 + waveSeparation;
+    const yShifted = y0;
+    const zShifted = z0;
 
-    // Compute the phase
-    const phase = m * data.phi - params.omega * params.t;
+    // Compute r, theta, phi for the first wave function
+    const r1 = Math.sqrt(x0 * x0 + y0 * y0 + z0 * z0);
+    const cosTheta1 = y0 / (r1 || 1e-8);
+    const theta1 = Math.acos(cosTheta1);
+    const phi1 = Math.atan2(z0, x0);
 
-    let amplitude;
-    let displacementVector = new THREE.Vector3(0, 0, 0);
-    let color = new THREE.Color();
-    let size;
+    data.r1 = r1;
+    data.theta1 = theta1;
+    data.phi1 = phi1;
+    data.cosTheta1 = cosTheta1;
 
-    // Original position vector
-    let originalPosition = data.originalPosition.clone();
-	const isCharge = params.harmonicType === 'Charge Only' ;
-    // Apply spin 1/2 transformation if enabled
-    if (params.spinorMode !== 'Off' || params.harmonicType === 'Spinor Only') {
-      const transformResult = spinHalfTransform(originalPosition, timeQuaternion, inverseTimeQuaternion);
-      originalPosition = transformResult.newPosition;
+    // Compute trigonometric values for the first wave function
+    data.sinTheta1 = Math.sin(theta1);
+    data.sinPhi1 = Math.sin(phi1);
+    data.cosPhi1 = Math.cos(phi1);
+
+    // Compute and store associated Legendre polynomials for the first wave function
+    data.P_lm1 = associatedLegendreP(l, m, cosTheta1);
+
+    // Compute and store derivative of P_lm with respect to theta for the first wave function
+    data.dP_lm_dtheta1 = derivative_associatedLegendreP_theta(l, m, theta1);
+
+    // Compute and store radial wave functions for the first wave function
+    const r_scaled1 = r1 * scale;
+    data.R_nl1 = radialWaveFunction(n, l, r_scaled1);
+
+    // Compute and store spherical Bessel functions for the first wave function
+    const rho1 = k * r_scaled1;
+    data.rho1 = rho1;
+    if (rho1 > 1e-5) {
+        // For the first wave
+        data.jn1 = sphericalBessel_jn(l, rho1);
+        data.jn_plus1_1 = sphericalBessel_jn(l + 1, rho1);
+        data.djn_drho1 = (l / rho1) * data.jn1 - data.jn_plus1_1;
+        data.derivative_rhoz_n1 = derivative_rho_zn(l, rho1);
+    } else {
+      data.jn1 = 0;
+      data.djn_drho1 = 0;
+      data.derivative_rhoz_n1 = 0;
     }
-	 if (isCharge) {
-	  const transformResult = transformCharge(originalPosition);
-	  originalPosition = transformResult.newPosition;
-      let scalingFactor = transformResult.scalingFactor;
-     const minScale = 0.75; // Adjust this range as necessary
-     const maxScale = 1.25;
-     const normalizedScale = (scalingFactor - minScale) / (maxScale - minScale);
 
-     // Clamp normalizedScale to [0, 1] to avoid overflows
-     const clampedScale = Math.max(0, Math.min(1, normalizedScale));
-     const hue = clampedScale * 0.7; // Map normalized scale to hue (0 is red, 0.7 is greenish)
+    if (showSecondWave) {
+      // Compute r, theta, phi for the second wave function
+      const r2 = Math.sqrt(
+        xShifted * xShifted + yShifted * yShifted + zShifted * zShifted
+      );
+      const cosTheta2 = yShifted / (r2 || 1e-8);
+      const theta2 = Math.acos(cosTheta2);
+      const phi2 = Math.atan2(zShifted, xShifted);
 
-         color.setHSL(hue, 1.0, 0.5); // Adjust saturation and lightness as needed
-	}
-	 // Apply spin 1/2 transformation if enabled
-        if (params.applySpinHalf) {
-            const transformResult = spinHalfTransform(originalPosition, timeQuaternion, inverseTimeQuaternion);
-            originalPosition = transformResult.newPosition;
+      data.r2 = r2;
+      data.theta2 = theta2;
+      data.phi2 = phi2;
+      data.cosTheta2 = cosTheta2;
+
+      // Compute trigonometric values for the second wave function
+      data.sinTheta2 = Math.sin(theta2);
+      data.sinPhi2 = Math.sin(phi2);
+      data.cosPhi2 = Math.cos(phi2);
+
+      // Compute and store associated Legendre polynomials for the second wave function
+      data.P_lm2 = associatedLegendreP(l2, m2, cosTheta2);
+
+      // Compute and store derivative of P_lm with respect to theta for the second wave function
+      data.dP_lm_dtheta2 = derivative_associatedLegendreP_theta(l2, m2, theta2);
+
+      // Compute and store radial wave functions for the second wave function
+      const r_scaled2 = r2 * scale;
+      data.R_nl2 = radialWaveFunction(n2, l2, r_scaled2);
+
+      // Compute and store spherical Bessel functions for the second wave function
+      const rho2 = k * r_scaled2;
+      data.rho2 = rho2;
+      if (rho2 > 1e-5) {
+          data.jn2 = sphericalBessel_jn(l2, rho2);
+          data.jn_plus1_2 = sphericalBessel_jn(l2 + 1, rho2);
+          data.djn_drho2 = (l2 / rho2) * data.jn2 - data.jn_plus1_2;
+          data.derivative_rhoz_n2 = derivative_rho_zn(l2, rho2);
+      } else {
+        data.jn2 = 0;
+        data.djn_drho2 = 0;
+        data.derivative_rhoz_n2 = 0;
+      }
+    }
+  }
+}
+
+function spinHalfTransformMultiple(originalPosition, spheres) {
+    let transformedPosition = originalPosition.clone();
+
+    let i = 0;
+    spheres.forEach(sphere => {
+        i += 1;
+        let direction =1;
+        if (i>1) {
+            if (params.spinor2Flipped) direction = -1;
+        }
+        // Compute timeQuaternion q_s(t)
+        const phase_s = direction*sphere.phase; // Each sphere has its own phase
+        const timeQuaternion = new THREE.Quaternion();
+        timeQuaternion.setFromAxisAngle(
+            new THREE.Vector3(0, 1, 0), // Y-axis rotation
+            phase_s
+        );
+
+        // Inverse quaternion
+        const inverseTimeQuaternion = timeQuaternion.clone().conjugate();
+
+        // Compute displacement from sphere to point
+        const displacement = transformedPosition.clone().sub(sphere.center);
+        const radius = displacement.length();
+
+        let kernelRotationAngle = 0;
+        const angle = (params.maxKernelAngle / 180.0) * Math.PI;
+        const power = params.decayPower;
+
+        // Original kernel function: Decaying rotation angle with distance
+        const adjustedRadius = Math.max(radius - params.sphereRadius, 0);
+        const fraction = 1 / Math.pow(adjustedRadius + 1, power);
+        kernelRotationAngle = angle * fraction;
+
+        // Kernel rotation quaternion k(r) rotating around X-axis
+        const kernelQuaternion = new THREE.Quaternion();
+        kernelQuaternion.setFromAxisAngle(
+            new THREE.Vector3(1, 0, 0), // Rotation axis (X-axis)
+            kernelRotationAngle          // Rotation angle based on kernel
+        );
+
+        // Combined rotation: q(t) * k(r) * q⁻¹(t)
+        const combinedQuaternion = new THREE.Quaternion();
+        combinedQuaternion.multiplyQuaternions(timeQuaternion, kernelQuaternion);
+        combinedQuaternion.multiply(inverseTimeQuaternion);
+
+        // Apply the combined rotation to the displacement
+        const rotatedDisplacement = displacement.clone().applyQuaternion(combinedQuaternion);
+
+        // Compute the new transformed position
+        transformedPosition = sphere.center.clone().add(rotatedDisplacement);
+    });
+
+    return { newPosition: transformedPosition };
+}
+
+function torusSpinHalfTransformMultiple(originalPosition, torusParams) {
+    let transformedPosition = originalPosition.clone();
+
+    const torusAxisNormalized = torusParams.torusAxis.clone().normalize();
+
+    // Compute displacement from torusCenter to point
+    const displacement = transformedPosition.clone().sub(torusParams.torusCenter);
+
+    // Compute radius from torus center to point
+    const radius = displacement.length();
+
+    // Project displacement onto plane perpendicular to torusAxis
+    const displacementOnPlane = displacement.clone().projectOnPlane(torusAxisNormalized);
+
+    // Compute rotation axis for kernelQuaternion (normalized vector in the plane)
+    const rotationAxis = displacementOnPlane.clone().normalize();
+
+    // Compute timeQuaternion: rotation around torusAxis by phase
+    const timeQuaternion = new THREE.Quaternion();
+    timeQuaternion.setFromAxisAngle(
+        torusAxisNormalized,
+        params.phase
+    );
+
+    // Compute inverseTimeQuaternion
+    const inverseTimeQuaternion = timeQuaternion.clone().conjugate();
+
+    // Compute kernelRotationAngle based on distance from torus center
+    let adjustedRadius = Math.max(radius - torusParams.torusRadius, 0);
+    // if we are inside the torus, we linearly interpolate the kernel angle from 0 to maxKernelAngle
+    let fraction = 0;
+    if (adjustedRadius < torusParams.torusTubeRadius) {
+        fraction = adjustedRadius / torusParams.torusTubeRadius;
+
+    }
+    else fraction = 1 / Math.pow(adjustedRadius + 1, params.decayPower);
+    const kernelRotationAngle = (params.maxKernelAngle / 180.0) * Math.PI * fraction;
+
+    // Compute kernelQuaternion: rotation around rotationAxis by kernelRotationAngle
+    const kernelQuaternion = new THREE.Quaternion();
+    kernelQuaternion.setFromAxisAngle(
+        rotationAxis,
+        kernelRotationAngle
+    );
+
+    // Combined rotation: q(t) * k(r) * q⁻¹(t)
+    const combinedQuaternion = new THREE.Quaternion();
+    combinedQuaternion.multiplyQuaternions(timeQuaternion, kernelQuaternion);
+    combinedQuaternion.multiply(inverseTimeQuaternion);
+
+    // Apply combinedQuaternion to displacement
+    const rotatedDisplacement = displacement.clone().applyQuaternion(combinedQuaternion);
+
+    // Compute the new transformed position
+    transformedPosition = torusParams.torusCenter.clone().add(rotatedDisplacement);
+
+
+    if ( originalPosition.x ==3 && originalPosition.y == 0 && originalPosition.z == 0) {
+        p("fraction = " + fraction + ", kernelRotationAngle = " + kernelRotationAngle + ", adjustedRadius = " + adjustedRadius +
+            ", torusParams.decayPower = " + params.decayPower);
+        p("originalPosition = " + originalPosition.x + ", " + originalPosition.y + ", " + originalPosition.z);
+        p("transformedPosition = " + transformedPosition.x + ", " + transformedPosition.y + ", " + transformedPosition.z);
+    }
+    return { newPosition: transformedPosition };
+}
+function p(s) {
+    console.log (s);
+}
+function updatePointCloud() {
+    const positionAttribute = pointCloud.geometry.attributes.position;
+    const colorAttribute = pointCloud.geometry.attributes.color;
+    const sizeAttribute = pointCloud.geometry.attributes.size;
+    const alphaAttribute = pointCloud.geometry.attributes.alpha;
+    const pointCount = positionAttribute.count;
+
+    const n = params.n;
+    const l = params.l;
+    const m = params.m;
+    const n2 = params.n2;
+    const l2 = params.l2;
+    const m2 = params.m2;
+    const pointData = pointCloud.geometry.userData.pointData;
+    const waveSeparation = params.waveSeparation;
+    const showSecondWave = params.showSecondWave;
+
+    // Define wave centers
+    const center1 = new THREE.Vector3(-waveSeparation/2, 0, 0);
+    const center2 = new THREE.Vector3(waveSeparation/2, 0, 0);
+
+    const waveCenters = [];
+
+    const phase1 = params.phase;
+    waveCenters.push({ center: center1, phase: phase1 });
+
+
+    if (showSecondWave) {
+        const phase2 = params.phase; // If you have a separate phase for the second wave, adjust here
+        waveCenters.push({ center: center2, phase: phase2 });
+    }
+    // Time-based rotation quaternion q(t) around Y-axis for spin 1/2
+    const timeQuaternion = new THREE.Quaternion();
+    timeQuaternion.setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0), // Rotation axis (Y-axis)
+        params.phase // Rotation angle (phase)
+    );
+
+    for (let i = 0; i < pointCount; i++) {
+        const data = pointData[i];
+        const x0 = data.x0;
+        const y0 = data.y0;
+        const z0 = data.z0;
+
+        // Original positions
+        let positionOfPoint = data.originalPosition.clone();
+
+        // Variables for scaling factors (used in Charge Only harmonic type)
+        let scalingFactor1 = 1.0;
+        let scalingFactor2 = 1.0;
+
+        // Apply transformations to positionOfPoint
+        if (params.spinorMode !== 'Off' || params.harmonicType === 'Spinor Only') {
+            const transformResult = spinHalfTransformMultiple(positionOfPoint, waveCenters);
+	   //      const transformResult = torusSpinHalfTransformMultiple(positionOfPoint, torusParams);
+    
+            positionOfPoint = transformResult.newPosition;
+        }
+        if (params.applyChargeTransformation || params.harmonicType === 'Charge Only') {
+            const transformResult =
+                transformChargeMultiple(positionOfPoint, waveCenters);
+            positionOfPoint = transformResult.newPosition;
+            scalingFactor1 = transformResult.scalingFactor;
         }
 
-        // Apply charge transformation if enabled
-        if (params.applyChargeTransformation) {
-            const transformResult = transformCharge(originalPosition);
-            originalPosition = transformResult.newPosition;
-            let scalingFactor = transformResult.scalingFactor;
+        // Initialize amplitude and displacement vectors
+        let amplitude1 = 0,
+            amplitude2 = 0;
 
-            // Compute color based on scalingFactor
+        let amplitude = 0;
+        // set displacement vectors to zero
+        displacementVector1.x = 0;
+        displacementVector1.y = 0;
+        displacementVector1.z = 0;
+        displacementVector2.x = 0;
+        displacementVector2.y = 0;
+        displacementVector2.z = 0;
+        displacementVector.x = 0;
+        displacementVector.y = 0;
+        displacementVector.z = 0;
+
+     //   let color = new THREE.Color();
+        let size = params.pointSize;
+
+        // Now, handle each harmonic type
+        if (params.harmonicType === 'Scalar') {
+            // First wave
+            let Y_lm1 = computeSphericalHarmonic(
+                l,
+                m,
+                data.P_lm1,
+                data.theta1,
+                data.phi1,
+                params.t
+            );
+            const Psi_nlm1 = data.R_nl1 * Y_lm1;
+            amplitude1 = Math.abs(Psi_nlm1) * 50; // Scale amplitude
+
+            if (isNaN(amplitude1) || !isFinite(amplitude1)) {
+                amplitude1 = 0;
+            }
+
+            // Displacement for the first wave
+            const displacementMagnitude1 = amplitude1 * params.displacementScale * 2;
+            const r1 = positionOfPoint.clone().sub(center1).length(); // Distance from center1
+            let unitRadialVector1 = positionOfPoint.clone().sub(center1).normalize();
+            if (r1 > 1e-5) {
+                unitRadialVector1.divideScalar(r1);
+            } else {
+                unitRadialVector1.set(0, 0, 0);
+            }
+            displacementVector1 = unitRadialVector1.multiplyScalar(displacementMagnitude1);
+
+            // Second wave
+            if (showSecondWave) {
+                let Y_lm2 = computeSphericalHarmonic(
+                    l2,
+                    m2,
+                    data.P_lm2,
+                    data.theta2,
+                    data.phi2,
+                    params.t
+                );
+                const Psi_nlm2 = data.R_nl2 * Y_lm2;
+                amplitude2 = Math.abs(Psi_nlm2) * 50; // Scale amplitude
+
+                if (isNaN(amplitude2) || !isFinite(amplitude2)) {
+                    amplitude2 = 0;
+                }
+
+                // Displacement for the second wave
+                const displacementMagnitude2 = amplitude2 * params.displacementScale * 2;
+                const r2 = positionOfPoint.clone().sub(center2).length(); // Distance from center2
+                let unitRadialVector2 = positionOfPoint.clone().sub(center2).normalize();
+                if (r2 > 1e-5) {
+                    unitRadialVector2.divideScalar(r2);
+                } else {
+                    unitRadialVector2.set(0, 0, 0);
+                }
+                displacementVector2 = unitRadialVector2.multiplyScalar(displacementMagnitude2);
+            }
+
+            // Combine amplitudes and displacements
+            amplitude = amplitude1 + amplitude2;
+            displacementVector.copy(displacementVector1);
+            if (showSecondWave) {
+                displacementVector.add(displacementVector2);
+            }
+
+            // Color based on amplitude
+            if (params.colorScheme === 'Amplitude') {
+                const hue = 0.7 - amplitude * 0.7; // Hue from blue (0.7) to red (0.0)
+                const lightness = 0.4 + amplitude * 0.6; // Lightness from 0.4 to 1.0
+                tempColor.setHSL(hue, 1, lightness);
+            } else if (params.colorScheme === 'Phase') {
+                // For phase coloring, combine phases from both waves
+                const phase1 = m * data.phi1 - params.omega * params.t;
+                let phase2 = 0;
+                if (showSecondWave) {
+                    phase2 = m2 * data.phi2 - params.omega * params.t;
+                }
+                const combinedPhase = (phase1 + phase2) / (showSecondWave ? 2 : 1);
+                const phaseValue =
+                    (Math.atan2(Math.sin(combinedPhase), Math.cos(combinedPhase)) + Math.PI) /
+                    (2 * Math.PI); // Normalize to [0,1]
+                tempColor.setHSL(phaseValue, 1, 0.5); // Hue based on phase
+            }
+
+            size =  params.overallScale *params.pointSize * (1 + amplitude * params.amplitudeScale);
+            if (isNaN(size) || size <= 0) {
+                size = params.pointSize;
+            }
+        } else if (params.harmonicType === 'Spinor Only') {
+            // Compute amplitude and color based on positions after spin 1/2 transformation
+            const r1 = positionOfPoint.clone().sub(center1).length();
+            amplitude1 = r1 * 0.3;
+            let normAmp1 = (amplitude1 + params.extent) / (2 * params.extent);
+
+            if (showSecondWave) {
+                const r2 = positionOfPoint.clone().sub(center2).length();
+                amplitude2 = r2 * 0.3;
+                let normAmp2 = (amplitude2 + params.extent) / (2 * params.extent);
+                amplitude = (normAmp1 + normAmp2) / 2; // Average amplitudes
+            } else {
+                amplitude = normAmp1;
+            }
+
+            if (params.colorScheme === 'Amplitude') {
+                tempColor.setHSL(amplitude, 1, 0.5);
+            } else if (params.colorScheme === 'Phase') {
+                const phase1 = m * data.phi1 - params.omega * params.t;
+                let phase2 = 0;
+                if (showSecondWave) {
+                    phase2 = m2 * data.phi2 - params.omega * params.t;
+                }
+                const combinedPhase = (phase1 + phase2) / (showSecondWave ? 2 : 1);
+                const phaseValue =
+                    (Math.atan2(Math.sin(combinedPhase), Math.cos(combinedPhase)) + Math.PI) /
+                    (2 * Math.PI); // Normalize to [0,1]
+                tempColor.setHSL(phaseValue, 1, 0.5); // Hue based on phase
+            }
+            size = params.pointSize * 0.5;
+        } else if (params.harmonicType === 'Charge Only') {
+            // Color has been computed during transformations
             const minScale = 0.75; // Adjust this range as necessary
             const maxScale = 1.25;
-            const normalizedScale = (scalingFactor - minScale) / (maxScale - minScale);
 
-            // Clamp normalizedScale to [0, 1] to avoid overflows
-            const clampedScale = Math.max(0, Math.min(1, normalizedScale));
-            const hue = clampedScale * 0.7; // Map normalized scale to hue (0 is red, 0.7 is greenish)
+            let normalizedScale1 = (scalingFactor1 - minScale) / (maxScale - minScale);
+            const clampedScale1 = Math.max(0, Math.min(1, normalizedScale1));
 
-            color.setHSL(hue, 1.0, 0.5); // Adjust saturation and lightness as needed
-        }
-    if (params.harmonicType === 'Scalar') {
-      // Scalar Harmonic: Compute Psi_nlm
-      let Y_lm = computeSphericalHarmonic(
-          l,  m,     P_lm,      data.theta,      data.phi, params.t
-      );
+            if (showSecondWave) {
+                let normalizedScale2 = (scalingFactor2 - minScale) / (maxScale - minScale);
+                const clampedScale2 = Math.max(0, Math.min(1, normalizedScale2));
 
-      const Psi_nlm = R_nl * Y_lm;
-      amplitude = Math.abs(Psi_nlm) * 50; // Scale amplitude for visualization
+                amplitude = (clampedScale1 + clampedScale2) / 2; // Average amplitudes
 
-      // Radial displacement
-      const displacementMagnitude = amplitude * params.displacementScale*2;
-      const r = originalPosition.length();
-      let unitRadialVector = originalPosition.clone().normalize();
-      if (r > 1e-5) {
-        unitRadialVector.divideScalar(r);
-      } else {
-        unitRadialVector.set(0, 0, 0);
-      }
-      displacementVector = unitRadialVector.multiplyScalar(displacementMagnitude);
+                // Set color based on combined scaling factors
+                const combinedScalingFactor = (scalingFactor1 + scalingFactor2) / 2;
+                const normalizedCombinedScale =
+                    (combinedScalingFactor - minScale) / (maxScale - minScale);
+                const clampedCombinedScale = Math.max(0, Math.min(1, normalizedCombinedScale));
+                const hue = clampedCombinedScale * 0.7;
+                tempColor.setHSL(hue, 1.0, 0.5);
+            } else {
+                amplitude = clampedScale1;
+                const hue = clampedScale1 * 0.7;
+                tempColor.setHSL(hue, 1.0, 0.5);
+            }
+            if (params.colorScheme === 'Phase') {
 
-      // Color based on amplitude or phase
-      if (params.colorScheme === 'Amplitude') {
-        const hue = 0.7 - amplitude * 0.7; // Hue from blue (0.7) to red (0.0)
-        const lightness = 0.4 + amplitude * 0.6; // Lightness from 0.4 to 1.0
-        color.setHSL(hue, 1, lightness);
-      } else if (params.colorScheme === 'Phase') {
-        const phaseValue =
-            (Math.atan2(
-                    Math.sin(m * data.phi - params.omega * params.t),
-                    Math.cos(m * data.phi - params.omega * params.t)
-                ) +
-                Math.PI) /
-            (2 * Math.PI); // Normalize to [0,1]
-        color.setHSL(phaseValue, 1, 0.5); // Hue based on phase
-      }
-      size = params.pointSize * (1 + amplitude * params.amplitudeScale);
-    } else if (
+                const phase1 = m * data.phi1 - params.omega * params.t;
+                let phase2 = 0;
+                if (showSecondWave) {
+                    phase2 = m2 * data.phi2 - params.omega * params.t;
+                }
+                const combinedPhase = (phase1 + phase2) / (showSecondWave ? 2 : 1);
+                const phaseValue =
+                    (Math.atan2(Math.sin(combinedPhase), Math.cos(combinedPhase)) + Math.PI) /
+                    (2 * Math.PI); // Normalize to [0,1]
+                tempColor.setHSL(phaseValue, 1, 0.5); // Hue based on phase
+            }
+
+            size = 0.5 * params.pointSize * (1 + amplitude * params.amplitudeScale);
+        } else if (
             params.harmonicType === 'Magnetic Vector Harmonics' ||
             params.harmonicType === 'Electric Vector Harmonics'
         ) {
-            // Vector Harmonics: Compute vector displacement
-            const vectorDisplacement = computeVectorAtPoint(n, m, data, params.t).multiplyScalar(
-                params.displacementScale * 2
+            // Compute vector harmonics
+            // First wave
+            const vector1 = computeVectorAtPoint(l, m, data, params.t, 1);
+            const vectorDisplacement1 = vector1.clone().multiplyScalar(
+                params.displacementScale * 2*params.overallScale
             );
-            displacementVector.copy(vectorDisplacement);
+            amplitude1 = vectorDisplacement1.length() * 5;
+            displacementVector1.copy(vectorDisplacement1);
 
-            // Compute amplitude based on vector magnitude
-            amplitude = vectorDisplacement.length() * 5; // Scale for visualization
+            if (showSecondWave) {
+                // Second wave
+                const vector2 = computeVectorAtPoint(l2, m2, data, params.t, 2);
+                const vectorDisplacement2 = vector2.clone().multiplyScalar(
+                    params.displacementScale * 2* params.overallScale
+                );
+                amplitude2 = vectorDisplacement2.length() * 5;
+                displacementVector2.copy(vectorDisplacement2);
+            }
+
+            // Combine amplitudes and displacements
+            amplitude = amplitude1 + amplitude2;
+            displacementVector.copy(displacementVector1);
+            if (showSecondWave) {
+                displacementVector.add(displacementVector2);
+            }
 
             // Color based on vector properties (e.g., direction)
-            const phi = data.phi;
-            const normalizedPhi = (phi + Math.PI) / (2 * Math.PI); // Normalize phi to [0,1]
+            const phi1 = data.phi1;
+            let phi2 = 0;
+            if (showSecondWave) {
+                phi2 = data.phi2;
+            }
+            const combinedPhi = (phi1 + phi2) / (showSecondWave ? 2 : 1);
+            const normalizedPhi = (combinedPhi + Math.PI) / (2 * Math.PI); // Normalize to [0,1]
             const hue = normalizedPhi; // Hue varies from 0 to 1 based on phi
-            color.setHSL(hue, 1, 0.5);
-            size = 0.5 * params.pointSize * (1 + amplitude * params.amplitudeScale);
-       
-    } else if (params.harmonicType === 'Spinor Only') {
-      // Spinor Only: Color based on position after spin 1/2 transformation
-      amplitude = originalPosition.length() * 0.3;
-      let normAmp =(amplitude + params.extent) / (2 * params.extent);
-      color.setHSL(normAmp, 1, 0.5);
-      size = params.pointSize*0.5;
-      amplitude =normAmp;
-    
-    } else if (params.harmonicType === 'Charge Only') {
-      // Charge Only: Color based on position after transformation
-      amplitude = originalPosition.length() * 0.5;
-      let normAmp =(amplitude + params.extent) / (2 * params.extent);
-      color.setHSL(normAmp, 1, 0.5);
-      size = 0.5 * params.pointSize * (1 + amplitude * params.amplitudeScale);
-     // amplitude =normAmp;
-    }
-
-    // Limit the size of the displacement vector
-    displacementVector.clampLength(0, 1.0);
-
-    // Update position
-    const newX = originalPosition.x + displacementVector.x;
-    const newY = originalPosition.y + displacementVector.y;
-    const newZ = originalPosition.z + displacementVector.z;
-    positionAttribute.setXYZ(i, newX, newY, newZ);
-
-    // Adjust point size based on amplitude
-    sizeAttribute.setX(i, size);
-
-    // Apply slicing to determine visibility
-    let visible = true;
-    if (params.sliceAxis !== 'None') {
-      const sliceValue = params.slicePosition;
-      const sliceDelta = params.sliceWidth;
-      switch (params.sliceAxis) {
-        case 'X':
-          visible = Math.abs(x0 - sliceValue) < sliceDelta;
-          break;
-        case 'Y':
-          visible = Math.abs(y0 - sliceValue) < sliceDelta;
-          break;
-        case 'Z':
-          visible = Math.abs(z0 - sliceValue) < sliceDelta;
-          break;
-      }
-    }
-
-    // Set transparency based on visibility and amplitude
-     let alpha;
-    if (params.harmonicType === 'Spinor Only' || params.harmonicType === 'Charge Only' ) {
-		// make inside less transparent
-		if (visible) {
-            alpha = 0.3;
+            tempColor.setHSL(hue, 1, 0.5);
+            if (params.colorScheme === 'Phase') {
+                const phase1 = m * data.phi1 - params.omega * params.t;
+                let phase2 = 0;
+                if (showSecondWave) {
+                    phase2 = m2 * data.phi2 - params.omega * params.t;
+                }
+                const combinedPhase = (phase1 + phase2) / (showSecondWave ? 2 : 1);
+                const phaseValue =
+                    (Math.atan2(Math.sin(combinedPhase), Math.cos(combinedPhase)) + Math.PI) /
+                    (2 * Math.PI); // Normalize to [0,1]
+                tempColor.setHSL(phaseValue, 1, 0.5); // Hue based on phase
+            }
+            size =  params.overallScale * 0.5 * params.pointSize * (1 + amplitude * params.amplitudeScale);
+            if (isNaN(size) || size <= 0) {
+                size = params.pointSize;
+            }
         }
-        else {
+
+        // Limit the size of the displacement vector
+        displacementVector.clampLength(0, 1.0);
+
+        // Compute the final position
+        let finalPosition = positionOfPoint.clone().add(displacementVector1);
+        if (showSecondWave) {
+            const secondPosition = positionOfPoint.clone().add(displacementVector2);
+            finalPosition.add(secondPosition).multiplyScalar(0.5); // Average positions
+        }
+
+        positionAttribute.setXYZ(i, finalPosition.x, finalPosition.y, finalPosition.z);
+
+        // Adjust point size based on amplitude
+        sizeAttribute.setX(i, size);
+
+        // Apply slicing to determine visibility
+        let visible = true;
+        if (params.sliceAxis !== 'None') {
+            const sliceValue = params.slicePosition;
+            const sliceDelta = params.sliceWidth;
+            switch (params.sliceAxis) {
+                case 'X':
+                    visible = Math.abs(x0 - sliceValue) < sliceDelta;
+                    break;
+                case 'Y':
+                    visible = Math.abs(y0 - sliceValue) < sliceDelta;
+                    break;
+                case 'Z':
+                    visible = Math.abs(z0 - sliceValue) < sliceDelta;
+                    break;
+            }
+        }
+
+        // Set transparency based on visibility and amplitude
+        let alpha;
+        if (
+            params.harmonicType === 'Spinor Only' ||
+            params.harmonicType === 'Charge Only'
+        ) {
+            alpha = visible ? 0.3 : 0;
+        } else {
+            alpha = visible ? Math.min(1.0, amplitude - 0.1) : 0;
+        }
+        if (isNaN(alpha) || alpha < 0 || alpha > 1) {
             alpha = 0;
         }
-      // In Spinor Only mode, set alpha to a lower value for transparency
+        alphaAttribute.setX(i, alpha);
 
-    } else {
-      // Set transparency based on visibility and amplitude for other modes
-      alpha = visible ? Math.min(1.0, amplitude - 0.1) : 0;
+        // Set color for points
+        colorAttribute.setXYZ(i, tempColor.r, tempColor.g, tempColor.b);
     }
-    alphaAttribute.setX(i, alpha);
 
-  // Set color for regular points
-  colorAttribute.setXYZ(i, color.r, color.g, color.b);
-
-
-  }
     // After updating positions, update the cubes' positions and trails
     if (highlightedPointIndices.length > 0) {
         const positions = positionAttribute.array;
@@ -1074,108 +1490,120 @@ function updatePointCloud() {
             trail.geometry.setFromPoints(positionsArray);
         }
     }
-  // Mark attributes as needing updates
-  positionAttribute.needsUpdate = true;
-  colorAttribute.needsUpdate = true;
-  sizeAttribute.needsUpdate = true;
-  alphaAttribute.needsUpdate = true;
+    // Mark attributes as needing updates
+    positionAttribute.needsUpdate = true;
+    colorAttribute.needsUpdate = true;
+    sizeAttribute.needsUpdate = true;
+    alphaAttribute.needsUpdate = true;
 }
+
 
 // Function to update the arrow helpers in each animation frame
-function updateArrowHelpers(timeQuaternion, inverseTimeQuaternion) {
-  const scaleFactor = params.vectorScale;
-  const maxVectorMagnitude = 1.0; // Should match the one in computeVectorAtPoint
-  const pointData = pointCloud.geometry.userData.pointData;
-  const n = params.n;
-  const m = params.m;
+function updateArrowHelpers() {
+    const scaleFactor = params.vectorScale;
+    const pointData = pointCloud.geometry.userData.pointData;
+    const n = params.n;
+    const l = params.l;
+    const m = params.m;
+    const n2 = params.n2;
+    const l2 = params.l2;
+    const m2 = params.m2;
+    const showSecondWave = params.showSecondWave;
 
-  for (let i = 0; i < arrowHelpers.length; i++) {
-    const arrowHelper = arrowHelpers[i];
-    const index = arrowIndices[i];
+    for (let i = 0; i < arrowHelpers.length; i++) {
+        const arrowHelper = arrowHelpers[i];
+        const index = arrowIndices[i];
 
-    const data = pointData[index];
-    const x = data.x0;
-    const y = data.y0;
-    const z = data.z0;
+        const data = pointData[index];
+        const x = data.x0;
+        const y = data.y0;
+        const z = data.z0;
 
-    // Compute the vector at this point with current time
-    const vector = computeVectorAtPoint(n, m, data, params.t);
-    const magnitude = vector.length();
-    const length = magnitude * scaleFactor;
+        // Compute the vector at this point with current time
+        const vector1 = computeVectorAtPoint(l, m, data, params.t, 1);
 
-    // Update arrow direction and length
-    if (length > params.threshold) {
-      const dir = vector.clone().normalize();
+        // Initialize the combined vector
+        let vector = vector1.clone();
 
-      // Apply spin 1/2 transformation if enabled
-      let origin = new THREE.Vector3(x, y, z);
-      if (
-          params.spinHalf &&
-          timeQuaternion !== undefined &&
-          inverseTimeQuaternion !== undefined
-      ) {
-        origin = spinHalfTransform(origin, timeQuaternion, inverseTimeQuaternion);
-        dir.applyQuaternion(
-            timeQuaternion.clone().multiply(inverseTimeQuaternion)
-        );
-      }
-
-      arrowHelper.position.copy(origin);
-      arrowHelper.setDirection(dir);
-      arrowHelper.setLength(length);
-
-      // Compute color based on vector direction (phi angle)
-      const phi = data.phi;
-      const normalizedPhi = (phi + Math.PI) / (2 * Math.PI); // Normalize phi to [0,1]
-      const hue = normalizedPhi; // Hue varies from 0 to 1 based on phi
-      const color = new THREE.Color();
-      color.setHSL(hue, 1, 0.5);
-
-      // Update arrow color
-      if (arrowHelper.setColor) {
-        arrowHelper.setColor(color);
-      } else {
-        // Access the materials directly if setColor is not available
-        arrowHelper.line.material.color.copy(color);
-        arrowHelper.cone.material.color.copy(color);
-      }
-
-      // Update visibility based on slicing
-      let visible = true;
-      if (params.sliceAxis !== 'None') {
-        const sliceValue = params.slicePosition;
-        const sliceDelta = params.sliceWidth;
-        switch (params.sliceAxis) {
-          case 'X':
-            visible = Math.abs(x - sliceValue) < sliceDelta;
-            break;
-          case 'Y':
-            visible = Math.abs(y - sliceValue) < sliceDelta;
-            break;
-          case 'Z':
-            visible = Math.abs(z - sliceValue) < sliceDelta;
-            break;
+        // If the second wave is enabled, compute the vector for the second wave and add it
+        if (showSecondWave) {
+            const vector2 = computeVectorAtPoint(l2, m2, data, params.t, 2);
+            vector.add(vector2);
         }
-      }
-      arrowHelper.visible = visible;
-    } else {
-      arrowHelper.visible = false;
+
+        const magnitude = vector.length();
+        const length = magnitude * scaleFactor;
+
+        // Update arrow direction and length
+        if (length > params.threshold) {
+            const dir = tempVector1.copy(vector).normalize();
+            const origin = tempVector2.set(x, y, z);
+
+            arrowHelper.position.copy(origin);
+            arrowHelper.setDirection(dir);
+            arrowHelper.setLength(length);
+
+            // Compute color based on vector direction (phi angle)
+            const phi1 = data.phi1;
+            let phi2 = 0;
+            if (showSecondWave) {
+                phi2 = data.phi2;
+            }
+            const combinedPhi = (phi1 + phi2) / (showSecondWave ? 2 : 1);
+            const normalizedPhi = (combinedPhi + Math.PI) / (2 * Math.PI); // Normalize to [0,1]
+            const hue = normalizedPhi; // Hue varies from 0 to 1 based on phi
+            const color = new THREE.Color();
+            color.setHSL(hue, 1, 0.5);
+
+            // Update arrow color
+            if (arrowHelper.setColor) {
+                arrowHelper.setColor(color);
+            } else {
+                arrowHelper.line.material.color.copy(color);
+                arrowHelper.cone.material.color.copy(color);
+            }
+
+            // Update visibility based on slicing
+            let visible = true;
+            if (params.sliceAxis !== 'None') {
+                const sliceValue = params.slicePosition;
+                const sliceDelta = params.sliceWidth;
+                switch (params.sliceAxis) {
+                    case 'X':
+                        visible = Math.abs(x - sliceValue) < sliceDelta;
+                        break;
+                    case 'Y':
+                        visible = Math.abs(y - sliceValue) < sliceDelta;
+                        break;
+                    case 'Z':
+                        visible = Math.abs(z - sliceValue) < sliceDelta;
+                        break;
+                }
+            }
+            arrowHelper.visible = visible;
+        } else {
+            arrowHelper.visible = false;
+        }
     }
-  }
 }
+
 
 // Animation loop
 function animate() {
   requestAnimationFrame(animate);
-
+    const omega = Math.max(params.omega, 1e-6);
   // Update time variable
-  if (params.autoRotate) {
-    const dt = 0.01 * params.timeScale;
-    params.t += dt;
+    if (params.autoRotate) {
+        const dt = 0.01 * params.timeScale;
+        params.t += dt;
 
-    // Update phase angle for spin 1/2
-     params.phase = params.t;
-  }
+        // if we are once around reset t to 0
+        if (params.t > 2 * Math.PI / omega) {
+            params.t = 0;
+        }
+        // Update phase angle for spin 1/2
+        params.phase = params.t;
+    }
 
   updatePointCloud(); // Update the scalar field and positions
 
@@ -1208,10 +1636,12 @@ function onWindowResize() {
 // Begin guicontrols.js content
 
 let gui;
-let quantumFolder, visualizationFolder, spinFolder, chargeFolder, sphericalFolder, vectorFolder;
-let mController, lController, scaleController;
+let quantumGui;
+let  visualizationFolder, spinFolder, chargeFolder, chargeFolder2, sphericalFolder, vectorFolder;
+let m1Controller, l1Controller, m2Controller, l2Controller;
+let scaleController;
 
-// Function to update m options based on l
+// Function to update m options based on l for Wave 1
 function updateMOptions() {
     if (!params) return; // Ensure params is initialized
 
@@ -1220,18 +1650,94 @@ function updateMOptions() {
         mOptions.push(i);
     }
 
-    if (mController) {
-        quantumFolder.remove(mController);
+    if (m1Controller) {
+        quantumFolder1.remove(m1Controller);
     }
-    mController = quantumFolder
+    m1Controller = quantumFolder1
         .add(params, 'm', mOptions)
-        .name('m: Magnetic Quantum Number');
-    mController.onChange((value) => {
+        .name('m1: Magnetic Quantum Number');
+    m1Controller.onChange((value) => {
         params.m = parseInt(value, 10);
         recreateObjects();
     });
 }
 
+// Function to update m2 options based on l2 for Wave 2
+function updateM2Options() {
+    if (!params) return; // Ensure params is initialized
+
+    const m2Options = [];
+    for (let i = -params.l2; i <= params.l2; i++) {
+        m2Options.push(i);
+    }
+
+    if (m2Controller) {
+        quantumFolder2.remove(m2Controller);
+    }
+    m2Controller = quantumFolder2
+        .add(params, 'm2', m2Options)
+        .name('m2: Magnetic Quantum Number');
+    m2Controller.onChange((value) => {
+        params.m2 = parseInt(value, 10);
+        recreateObjects();
+    });
+}
+
+// Function to update quantum numbers for Wave 1
+function updateQuantumNumbers() {
+    if (!params || !quantumFolder1) return; // Ensure params and quantumFolder1 are initialized
+
+    const lOptions = [];
+    for (let i = 0; i <= params.n - 1; i++) {
+        lOptions.push(i);
+    }
+
+    if (l1Controller) {
+        quantumFolder1.remove(l1Controller);
+    }
+    l1Controller = quantumFolder1
+        .add(params, 'l', lOptions)
+        .name('l1: Azimuthal Quantum Number');
+    l1Controller.onChange((value) => {
+        params.l = parseInt(value, 10);
+        params.l = Math.max(0, Math.min(params.l, params.n - 1));
+
+        if (params.m > params.l || params.m < -params.l) {
+            params.m = 0;
+        }
+        updateMOptions();
+        recreateObjects();
+    });
+
+    updateMOptions();
+}
+
+// Function to update quantum numbers for Wave 2
+function updateQuantumNumbers2() {
+    if (!params || !quantumFolder2) return; // Ensure params and quantumFolder2 are initialized
+
+    const l2Options = [];
+    for (let i = 0; i <= params.n2 - 1; i++) {
+        l2Options.push(i);
+    }
+
+    if (l2Controller) {
+        quantumFolder2.remove(l2Controller);
+    }
+    l2Controller = quantumFolder2
+        .add(params, 'l2', l2Options)
+        .name('l2: Azimuthal Quantum Number');
+    l2Controller.onChange((value) => {
+        params.l2 = parseInt(value, 10);
+        if (params.m2 > params.l2 || params.m2 < -params.l2) {
+            params.m2 = 0;
+        }
+        updateM2Options();
+        recreateObjects();
+    });
+
+    updateM2Options();
+}
 // Function to highlight a random point
 function highlightRandomPoint() {
     if (!pointCloud) return; // Ensure pointCloud is available
@@ -1241,330 +1747,374 @@ function highlightRandomPoint() {
 
 }
 
-// Function to update l and m options based on n
-function updateQuantumNumbers() {
-    if (!params || !quantumFolder) return; // Ensure params and quantumFolder are initialized
-
-    const lOptions = [];
-    for (let i = 0; i <= params.n - 1; i++) {
-        lOptions.push(i);
-    }
-
-    if (lController) {
-        quantumFolder.remove(lController);
-    }
-    lController = quantumFolder
-        .add(params, 'l', lOptions)
-        .name('l: Azimuthal Quantum Number');
-    lController.onChange((value) => {
-        params.l = parseInt(value, 10);
-        if (params.m > params.l || params.m < -params.l) {
-            params.m = 0;
-        }
-        updateMOptions();
-        recreateObjects();
-    });
-
-    updateMOptions();
-
-    // if n is 0, make the amplitude scale smaller
-    if (params.n === 0) {
-        params.amplitudeScale = 0.005;
+function updateUserMessage(message) {
+    const messageElement = document.getElementById('user-message'); // Ensure this div exists in your HTML
+    if (message) {
+        messageElement.style.display = 'block';
+        messageElement.innerText = message;
+    } else {
+        messageElement.style.display = 'none';
     }
 }
-
 // Adjust the GUI to include the new harmonic type
 function initializeGUI() {
-    params = {
-		  applySpinHalf: false,
+  params = {
+    applySpinHalf: false,
     applyChargeTransformation: false,
-        extent: 5,
-        scale: 3.0,
-        n: 3,
-        l: 1,
-        m: 1,
-        amplitudeScale: 2.0,
-        autoRotate: true,
-        colorScheme: 'Amplitude',
-        omega: 1.0,
-        timeScale: 2.0,
-        t: 0,
-        sliceAxis: 'None',
-        slicePosition: 0.0,
-        sliceWidth: 0.12,
-        pointSize: 1.0,
-        vectorScale: 2,
-        harmonicType: 'Scalar',
-        skipPoints: 4,
-        threshold: 0.01,
-        displacementScale: 0.1,
-        numHighlightedPoints: 10,
-        trailLength: 50,
-        showInfo: function () {
-            document.getElementById('info-popup').style.display = 'block';
-        },
-        highlightRandomPoint,
-        enableSpinHalf: false,
-        spinorMode: 'Off',
-        chargeMode: 'Plus Charge',
-        waveNumber: 4,
-        maxKernelAngle: 180,
-        decayPower: 2,
-        phase: 0.0,
-        sphereRadius: 2.0,
-    };
+    extent: 5,
+    scale: 3.0,
+    n: 3,
+    l: 1,
+    m: 1,
+    n2: 3,
+    l2: 1,
+    m2: 1,
+    showSecondWave: false,
+    waveSeparation: 0,
+    amplitudeScale: 2.0,
+    autoRotate: true,
+    colorScheme: 'Amplitude',
+    omega: 1.0,
+    timeScale: 5.0,
+    t: 0,
+    sliceAxis: 'None',
+    slicePosition: 0.0,
+    sliceWidth: 0.12,
+    pointSize: 1.0,
+    vectorScale: 2,
+    harmonicType: 'Scalar',
+    skipPoints: 3,
+    threshold: 0.01,
+    displacementScale: 0.1,
+    numHighlightedPoints: 10,
+    trailLength: 50,
+    showInfo: function () {
+      document.getElementById('info-popup').style.display = 'block';
+    },
+    highlightRandomPoint,
+    enableSpinHalf: false,
+    spinorMode: 'Off',
+    chargeMode: 'Plus Charge',
+      chargeMode2: 'Plus Charge',
+    waveNumber: 4,
+    maxKernelAngle: 180,
+      spinor2Flipped: true,
+    decayPower: 2,
+    phase: 0.0,
+    sphereRadius: 0.1,
+      overallScale:1,
+  };
 
-    gui = new dat.GUI({ autoPlace: false });
+  gui = new dat.GUI({ autoPlace: false });
+   quantumGui = new dat.GUI({ autoPlace: false });
 
     // Group GUI controls into folders to reduce clutter
 
-    visualizationFolder = gui.addFolder('Visualization');
+  visualizationFolder = gui.addFolder('Visualization');
 
-    // Visualization controls
-    visualizationFolder.add(params, 'harmonicType', [
-        'Scalar',
-        'Magnetic Vector Harmonics',
-        'Electric Vector Harmonics',
-        'Spinor Only',
-        'Charge Only',
+  // Visualization controls
+  visualizationFolder
+    .add(params, 'harmonicType', [
+      'Scalar',
+      'Magnetic Vector Harmonics',
+      'Electric Vector Harmonics',
+      'Spinor Only',
+      'Charge Only',
     ])
-        .name('Wave Type')
+    .name('Wave Type')
+    .onChange(() => {
+      adjustGUIControls();
+      recreateObjects();
+    });
+
+
+    let waveSeparationController = visualizationFolder
+        .add(params, 'waveSeparation', 0.0, 2 * params.extent, 0.1)
+        .name('Wave Separation')
         .onChange(() => {
-            adjustGUIControls();
             recreateObjects();
         });
-		
-		visualizationFolder.add(params, 'applySpinHalf')
+
+  visualizationFolder
+    .add(params, 'applySpinHalf')
     .name('Apply Spin 1/2 Transformation')
     .onChange(() => {
-        adjustGUIControls();
-        recreateObjects();
+      adjustGUIControls();
+      recreateObjects();
     });
 
-visualizationFolder.add(params, 'applyChargeTransformation')
+  visualizationFolder
+    .add(params, 'applyChargeTransformation')
     .name('Apply Charge Transformation')
     .onChange(() => {
-        adjustGUIControls();
-        recreateObjects();
+      adjustGUIControls();
+      recreateObjects();
     });
-	
-    quantumFolder = gui.addFolder('Quantum Numbers');
-    spinFolder = gui.addFolder('Spin 1/2 Transformation');
-    spinFolder.closed = false;
 
-    // Info button
-    gui.add(params, 'showInfo').name('Info');
-    visualizationFolder.add(params, 'numHighlightedPoints', 0, 100, 1)
-        .name('Number of Highlighted Points')
-        .onChange(() => {
-            highlightRandomPoints();
-        });
-    visualizationFolder.add(params, 'trailLength', 10, 200, 1)
-        .name('Trail Length');
-    // Quantum numbers controls
-    quantumFolder.add(params, 'n', 1, 6, 1)
-        .name('n: Principal Quantum Number')
+    quantumFolder1 = quantumGui.addFolder('Quantum Numbers Wave 1');
+    quantumFolder2 = quantumGui.addFolder('Quantum Numbers Wave 2');
+
+    spinFolder = quantumGui.addFolder('Spin 1/2 Transformation');
+  spinFolder.closed = false;
+
+  // Info button
+  gui.add(params, 'showInfo').name('Info');
+  visualizationFolder
+    .add(params, 'numHighlightedPoints', 0, 100, 1)
+    .name('Number of Highlighted Points')
+    .onChange(() => {
+      highlightRandomPoints();
+    });
+  visualizationFolder.add(params, 'trailLength', 10, 200, 1).name('Trail Length');
+  visualizationFolder.add(params, 'showSecondWave').name('Second Wave').onChange(() => {
+      // change the waveseperation value
+        if (params.showSecondWave) {
+            params.waveSeparation =  params.extent*1.5;
+			params.scale = 3;
+        }
+        else {
+            params.waveSeparation = 0; // Optionally reset when second wave is off
+        }
+       scaleController.updateDisplay();
+
+      waveSeparationController.updateDisplay();
+      adjustGUIControls();
+    recreateObjects();
+  });
+
+    // Quantum numbers controls for Wave 1
+    quantumFolder1
+        .add(params, 'n', 1, 6, 1)
+        .name('n1: Principal Quantum Number')
         .onChange(() => {
             if (params.l > params.n - 1) {
                 params.l = params.n - 1;
             }
-            // also make sure m is within bounds
             if (params.m > params.l || params.m < -params.l) {
                 params.m = 0;
             }
             updateQuantumNumbers();
             recreateObjects();
         });
-    // Spin 1/2 Transformation controls
-    spinFolder.add(params, 'spinorMode', ['Off', 'Overlay', 'Spinor Only', 'Charge only'])
-        .name('Spin 1/2 Mode')
-        .onChange(() => {
-            adjustGUIControls();
-            recreateObjects();
-        });
 
-    spinFolder.add(params, 'maxKernelAngle', 0, 180)
-        .name('Max Kernel Angle');
-
-    spinFolder.add(params, 'decayPower', 0.5, 3.0)
-        .name('Decay Power');
-		
-		
-	chargeFolder = gui.addFolder('Charge Wave Transformation');
-	chargeFolder.closed = false;
-
-    sphericalFolder = gui.addFolder('Scalar Harmonics');
-    sphericalFolder.closed = false;
-
-    vectorFolder = gui.addFolder('Vector Harmonics');
-    vectorFolder.closed = false;
-
-	chargeFolder.add(params, 'chargeMode', ['Off', 'Plus Charge', 'Minus Charge'])
-	  .name('Charge Mode')
-	  .onChange(() => {
-		recreateObjects();
-	  });
-
-    chargeFolder.add(params, 'waveNumber', 1, 10)
-        .name('Wave number');
-
-
-
-    visualizationFolder.add(params, 'amplitudeScale', 0.1, 10).name('Amplitude Scale');
-    sphericalFolder.add(params, 'displacementScale', 0.0, 2).name('Displacement Scale');
-
-    sphericalFolder.add(params, 'omega', 0.1, 10).name('Angular Frequency');
-    visualizationFolder.add(params, 'timeScale', 1, 10).name('Time Scale');
-    visualizationFolder.add(params, 'autoRotate').name('Animate Wave');
-    visualizationFolder.add(params, 'colorScheme', ['Amplitude', 'Phase']).name('Color Scheme');
-    visualizationFolder
-        .add(params, 'sliceAxis', ['None', 'X', 'Y', 'Z'])
-        .name('Slice Axis')
-        .onChange(recreateObjects);
-    visualizationFolder.add(params, 'slicePosition', -10, 10).name('Slice Position');
-    visualizationFolder.add(params, 'sliceWidth', 0.12, 5).name('Slice Width');
-    visualizationFolder
-        .add(params, 'pointSize', 0.1, 3)
-        .name('Point Size')
-        .onChange(recreateObjects);
-    visualizationFolder
-        .add(params, 'extent', 3, 7, 1)
-        .name('Grid Extent')
-        .onChange(recreateObjects);
-    scaleController = visualizationFolder
-        .add(params, 'scale', 0.2, 5.0)
-        .name('Spherical Scale')
-        .onChange(() => {
-            precomputeWavefunctionData();
-            recreateObjects();
-        });
-
-    // Extend GUI controls for Vector Spherical Harmonics (VSH)
-    vectorFolder
-        .add(params, 'vectorScale', 0.1, 5.0)
-        .name('Vector Scale')
-        .onChange(recreateObjects);
-
-    vectorFolder
-        .add(params, 'skipPoints', 1, 10, 1)
-        .name('Skip Points')
-        .onChange(recreateObjects);
-    vectorFolder
-        .add(params, 'threshold', 0.001, 0.1)
-        .name('Threshold')
-        .onChange(recreateObjects);
-    document.getElementById('gui-container').appendChild(gui.domElement);
-    document.getElementById('info-close').onclick = function () {
-        document.getElementById('info-popup').style.display = 'none';
-    };
-    visualizationFolder.closed = false;
-    adjustGUIControls();
-
-
-
-    // Initialize l and m controllers
+    // Initialize l1 and m1 controllers
     updateQuantumNumbers();
 
+    // Quantum numbers controls for Wave 2
+    quantumFolder2
+        .add(params, 'n2', 1, 6, 1)
+        .name('n2: Principal Quantum Number')
+        .onChange(() => {
+            if (params.l2 > params.n2 - 1) {
+                params.l2 = params.n2 - 1;
+            }
+            if (params.m2 > params.l2 || params.m2 < -params.l2) {
+                params.m2 = 0;
+            }
+            updateQuantumNumbers2();
+            recreateObjects();
+        });
+
+    // Initialize l2 and m2 controllers
+    updateQuantumNumbers2();
+
+  // Spin 1/2 Transformation controls
+  spinFolder
+    .add(params, 'spinorMode', ['Off', 'Overlay', 'Spinor Only', 'Charge only'])
+    .name('Spin 1/2 Mode')
+    .onChange(() => {
+      adjustGUIControls();
+      recreateObjects();
+    });
+
+  spinFolder.add(params, 'maxKernelAngle', 0, 180).name('Max Kernel Angle');
+    spinFolder.add(params, 'spinor2Flipped', 0, 180).name('Flip Spinor 2');
+  spinFolder.add(params, 'decayPower', 0.5, 3.0).name('Decay Power');
+
+  chargeFolder = quantumGui.addFolder('Charge Wave 1');
+  chargeFolder.closed = false;
+    chargeFolder2 = quantumGui.addFolder('Charge Wave 2');
+    chargeFolder2.closed = false;
+
+  sphericalFolder = quantumGui.addFolder('Scalar Harmonics');
+  sphericalFolder.closed = false;
+
+  vectorFolder = quantumGui.addFolder('Vector Harmonics');
+  vectorFolder.closed = false;
+
+  chargeFolder
+    .add(params, 'chargeMode', ['Off', 'Plus Charge', 'Minus Charge'])
+    .name('Charge Mode 1')
+    .onChange(() => {
+      recreateObjects();
+    });
+    chargeFolder2
+        .add(params, 'chargeMode2', ['Off', 'Plus Charge', 'Minus Charge'])
+        .name('Charge Mode 2')
+        .onChange(() => {
+            recreateObjects();
+        });
+  chargeFolder.add(params, 'waveNumber', 1, 10).name('Wave number');
+
+  visualizationFolder
+    .add(params, 'amplitudeScale', 0.1, 10)
+    .name('Amplitude Scale');
+  sphericalFolder
+    .add(params, 'displacementScale', 0.0, 2)
+    .name('Displacement Scale');
+
+  sphericalFolder.add(params, 'omega', 0.1, 10).name('Angular Frequency');
+  visualizationFolder
+    .add(params, 'timeScale', 1, 20)
+    .name('Time Scale');
+  visualizationFolder.add(params, 'autoRotate').name('Animate Wave');
+  visualizationFolder
+    .add(params, 'colorScheme', ['Amplitude', 'Phase'])
+    .name('Color Scheme');
+  visualizationFolder
+    .add(params, 'sliceAxis', ['None', 'X', 'Y', 'Z'])
+    .name('Slice Axis')
+    .onChange(recreateObjects);
+  visualizationFolder
+    .add(params, 'slicePosition', -10, 10)
+    .name('Slice Position');
+  visualizationFolder
+    .add(params, 'sliceWidth', 0.12, 5)
+    .name('Slice Width');
+  visualizationFolder
+    .add(params, 'pointSize', 0.1, 3)
+    .name('Point Size')
+    .onChange(recreateObjects);
+
+   let extentController = visualizationFolder
+        .add(params, 'extent', 3, 7, 1)
+        .name('Grid Extent')
+        .onChange(() => {
+            // Update the max value of waveSeparationController
+            waveSeparationController.max(2 * params.extent);
+            recreateObjects();
+        });
+
+  scaleController = visualizationFolder
+    .add(params, 'scale', 1, 10.0)
+    .name('Zoomout')
+    .onChange(() => {
+      precomputeWavefunctionData();
+      recreateObjects();
+    });
+
+  // Extend GUI controls for Vector Spherical Harmonics (VSH)
+  vectorFolder
+    .add(params, 'vectorScale', 0.1, 5.0)
+    .name('Vector Scale')
+    .onChange(recreateObjects);
+
+  vectorFolder
+    .add(params, 'skipPoints', 1, 10, 1)
+    .name('Skip Points')
+    .onChange(recreateObjects);
+  vectorFolder
+    .add(params, 'threshold', 0.001, 0.1)
+    .name('Threshold')
+    .onChange(recreateObjects);
+  document.getElementById('gui-container').appendChild(gui.domElement);
+    document.getElementById('quantum-gui-container').appendChild(quantumGui.domElement);
+    // move th quantum gui to the right
+    quantumGui.domElement.style.position = 'absolute';
+    quantumGui.domElement.style.right = '0px';
+
+    // Synchronize the close behavior of both GUI controls
+    gui.__closeButton.addEventListener('click', () => {
+        if ( quantumGui.domElement.style.display==='')  quantumGui.domElement.style.display = 'none';
+        else {
+            // show again
+            quantumGui.domElement.style.display = '';
+        }
+    });
+
+
+    document.getElementById('info-close').onclick = function () {
+    document.getElementById('info-popup').style.display = 'none';
+  };
+  visualizationFolder.closed = false;
+  adjustGUIControls();
+
+  // Initialize l and m controllers
+  updateQuantumNumbers();
 }
+
 function smoothStep(edge0, edge1, x) {
   const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0.0), 1.0);
   return t * t * (3 - 2 * t);
 }
-function computeChargeStrength(originalPosition) {
-    const radius = originalPosition.length(); // Distance from the center
-    const R = params.sphereRadius;           // Sphere's radius
-    let maxAngle = (params.maxKernelAngle / 180.0) * Math.PI; // Max angle in radians
+	
+	function adjustGUIControls() {
+  if (!params || !visualizationFolder || !spinFolder) return;
 
-    // Change direction based on mode
-    if (params.chargeMode === 'Minus Charge') {
-        maxAngle = -maxAngle;
+  const isVector =
+    params.harmonicType === 'Magnetic Vector Harmonics' ||
+    params.harmonicType === 'Electric Vector Harmonics';
+  const isScalar = params.harmonicType === 'Scalar';
+  const isSpinor =
+    params.applySpinHalf ||
+    params.harmonicType === 'Spinor Only' ||
+    params.spinorMode !== 'Off';
+  const isCharge =
+    params.applyChargeTransformation ||
+    params.harmonicType === 'Charge Only';
+
+  visualizationFolder.__controllers.forEach((controller) => {
+    if (
+      controller.property === 'vectorScale' ||
+      controller.property === 'skipPoints' ||
+      controller.property === 'threshold'
+    ) {
+      controller.domElement.parentElement.style.display = isVector ? '' : 'none';
     }
+  });
 
-	const transitionWidth= R*0.5;
-	const innerRadius = R - transitionWidth;
-    const outerRadius = R + transitionWidth;
-  
-    if (radius <= innerRadius) {
-		// Fully inside the sphere
-		maxAngle = maxAngle * (radius / R);
-	  } else if (radius >= outerRadius) {
-		// Fully outside the sphere
-		maxAngle = maxAngle * (R / radius) ** 2;
-	  } else {
-		// Transition region: interpolate between inside and outside formulas
-		const t = smoothStep(innerRadius, outerRadius, radius);
-		const insideAngle = maxAngle * (radius / R);
-		const outsideAngle = maxAngle * (R / radius) ** 2;
-		maxAngle = (1 - t) * insideAngle + t * outsideAngle;
-	  }
-	  
-	  return maxAngle*0.1;
-	}
-	
-	
-// Function to adjust GUI controls based on harmonic type and spinor mode
-function adjustGUIControls() {
-    if (!params || !visualizationFolder || !spinFolder) return;
-
-     const isVector =
-        params.harmonicType === 'Magnetic Vector Harmonics' ||
-        params.harmonicType === 'Electric Vector Harmonics';
-    const isScalar = params.harmonicType === 'Scalar';
-    const isSpinor = params.applySpinHalf || params.harmonicType === 'Spinor Only' || params.spinorMode !== 'Off';
-	const isCharge = params.applyChargeTransformation ||params.harmonicType === 'Charge Only' ;
-    visualizationFolder.__controllers.forEach(controller => {
-        if (controller.property === 'vectorScale' ||
-            controller.property === 'skipPoints' ||
-            controller.property === 'threshold') {
-            controller.domElement.parentElement.style.display = isVector ? '' : 'none';
-        }
-    });
-
-
-
+  params.overallScale = 1;
   if (isCharge && params.applyChargeTransformation == false) {
-      // use slicing
-        params.sliceAxis = 'Z';
-        // also refresh the control
-
-        params.slicePosition = 0;
-        params.sliceWidth = 0.12;
-        params.amplitudeScale=0.1;
-  }
-  else if (isSpinor && params.applySpinHalf ==false) {
-      // use slicing
-        params.sliceAxis = 'Y';
-        params.slicePosition = 0;
-        params.sliceWidth = 0.12;
-        params.amplitudeScale=0.1;
-        params.pointSize=1.5;
-        params.timeScale=5;
-  }
-  else if (isScalar) {
-
-      // no slicing
-        params.sliceAxis = 'None';
+    params.sliceAxis = 'Z';
+    params.slicePosition = 0;
+    params.sliceWidth = 0.12;
+    params.amplitudeScale = 0.1;
+  } else if (isSpinor && params.applySpinHalf == false) {
+    params.sliceAxis = 'Y';
+    params.slicePosition = 0;
+    params.sliceWidth = 0.12;
+    params.amplitudeScale = 0.1;
+    params.pointSize = 1.5;
+    params.timeScale = 5;
+  } else if (isScalar) {
+    params.sliceAxis = 'None';
   }
   else if (isVector) {
-      // slicig
-  }
-    visualizationFolder.__controllers.forEach(controller => {
-        if (controller.property === 'sliceAxis') {
-            controller.updateDisplay();
-        }
-    });
-    spinFolder.domElement.style.display = isSpinor ? '' : 'none';
-    chargeFolder.domElement.style.display = isCharge ? '' : 'none';
-    sphericalFolder.domElement.style.display = (isVector  || isScalar)? '' : 'none';
-    vectorFolder.domElement.style.display = (isVector )? '' : 'none';
+    params.sliceAxis = 'Z';
+    params.timeScale = 5;
+    if (params.m ===0) {
+        params.overallScale =2;
+    }
 
-    // if scalar or vector, open the quantum folder
-    if (isScalar || isVector) {
-        quantumFolder.open();
+  }
+
+  visualizationFolder.__controllers.forEach((controller) => {
+    if (controller.property === 'sliceAxis') {
+      controller.updateDisplay();
     }
-    else {
-        quantumFolder.close();
-    }
+  });
+  spinFolder.domElement.style.display = isSpinor ? '' : 'none';
+  chargeFolder.domElement.style.display = isCharge ? '' : 'none';
+  sphericalFolder.domElement.style.display = isVector || isScalar ? '' : 'none';
+  vectorFolder.domElement.style.display = isVector ? '' : 'none';
+
+  if (isScalar || isVector) {
+    quantumFolder1.open();
+      quantumFolder2.open();
+  } else {
+    quantumFolder1.close();
+      quantumFolder2.close();
+  }
 }
 
 window.onclick = function (event) {

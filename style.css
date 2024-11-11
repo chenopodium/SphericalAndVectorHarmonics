@@ -10,6 +10,14 @@ body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Ver
     z-index: 1001; /* Adjusted to be above the popup background but below the close button */
     padding-right: 50px; /* Add padding to prevent overlap with the close button */
 }
+#quantum-gui-container {
+    position: absolute;
+    top: 30px;
+    right: 10px;
+    z-index: 1001; /* Adjusted to be above the popup background but below the close button */
+    padding-right: 50px; /* Add padding to prevent overlap with the close button */
+}
+
 /* Styles for the info popup */
 #info-popup {
     display: none; /* Hidden by default */
