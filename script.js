@@ -1638,6 +1638,7 @@ function onWindowResize() {
 let gui;
 let quantumGui;
 let  visualizationFolder, spinFolder, chargeFolder, chargeFolder2, sphericalFolder, vectorFolder;
+let experimentalFolder, markerFolder, sliceFolder;
 let m1Controller, l1Controller, m2Controller, l2Controller;
 let scaleController;
 
@@ -1835,38 +1836,51 @@ function initializeGUI() {
             recreateObjects();
         });
 
-  visualizationFolder
-    .add(params, 'applySpinHalf')
-    .name('Apply Spin 1/2 Transformation')
-    .onChange(() => {
-      adjustGUIControls();
-      recreateObjects();
-    });
 
-  visualizationFolder
-    .add(params, 'applyChargeTransformation')
-    .name('Apply Charge Transformation')
-    .onChange(() => {
-      adjustGUIControls();
-      recreateObjects();
-    });
+
+    experimentalFolder = quantumGui.addFolder('Experimental');
+    experimentalFolder
+        .add(params, 'applySpinHalf')
+        .name('Add Spin 1/2')
+        .onChange(() => {
+            adjustGUIControls();
+            recreateObjects();
+        });
+
+    experimentalFolder
+        .add(params, 'applyChargeTransformation')
+        .name('Add Charge')
+        .onChange(() => {
+            adjustGUIControls();
+            recreateObjects();
+        });
+
+    experimentalFolder.closed = true;
 
     quantumFolder1 = quantumGui.addFolder('Quantum Numbers Wave 1');
     quantumFolder2 = quantumGui.addFolder('Quantum Numbers Wave 2');
 
     spinFolder = quantumGui.addFolder('Spin 1/2 Transformation');
-  spinFolder.closed = false;
+    spinFolder.closed = false;
 
-  // Info button
-  gui.add(params, 'showInfo').name('Info');
-  visualizationFolder
-    .add(params, 'numHighlightedPoints', 0, 100, 1)
-    .name('Number of Highlighted Points')
-    .onChange(() => {
-      highlightRandomPoints();
-    });
-  visualizationFolder.add(params, 'trailLength', 10, 200, 1).name('Trail Length');
-  visualizationFolder.add(params, 'showSecondWave').name('Second Wave').onChange(() => {
+
+  markerFolder = gui.addFolder('Markers');
+    markerFolder
+        .add(params, 'numHighlightedPoints', 0, 100, 1)
+        .name('Number of Highlighted Points')
+        .onChange(() => {
+            highlightRandomPoints();
+        });
+
+    markerFolder.add(params, 'trailLength', 10, 200, 1).name('Trail Length');
+    markerFolder.closed = false;
+
+    // Info button
+    gui.add(params, 'showInfo').name('Info');
+
+
+
+    visualizationFolder.add(params, 'showSecondWave').name('Second Wave').onChange(() => {
       // change the waveseperation value
         if (params.showSecondWave) {
             params.waveSeparation =  params.extent*1.5;
@@ -1932,9 +1946,9 @@ function initializeGUI() {
   spinFolder.add(params, 'decayPower', 0.5, 3.0).name('Decay Power');
 
   chargeFolder = quantumGui.addFolder('Charge Wave 1');
-  chargeFolder.closed = false;
+  chargeFolder.closed = true;
     chargeFolder2 = quantumGui.addFolder('Charge Wave 2');
-    chargeFolder2.closed = false;
+    chargeFolder2.closed = true;
 
   sphericalFolder = quantumGui.addFolder('Scalar Harmonics');
   sphericalFolder.closed = false;
@@ -1971,16 +1985,9 @@ function initializeGUI() {
   visualizationFolder
     .add(params, 'colorScheme', ['Amplitude', 'Phase'])
     .name('Color Scheme');
-  visualizationFolder
-    .add(params, 'sliceAxis', ['None', 'X', 'Y', 'Z'])
-    .name('Slice Axis')
-    .onChange(recreateObjects);
-  visualizationFolder
-    .add(params, 'slicePosition', -10, 10)
-    .name('Slice Position');
-  visualizationFolder
-    .add(params, 'sliceWidth', 0.12, 5)
-    .name('Slice Width');
+
+
+
   visualizationFolder
     .add(params, 'pointSize', 0.1, 3)
     .name('Point Size')
@@ -2002,6 +2009,20 @@ function initializeGUI() {
       precomputeWavefunctionData();
       recreateObjects();
     });
+
+    sliceFolder = visualizationFolder.addFolder('3D Slicing');
+    sliceFolder.closed = false;
+
+    sliceFolder
+        .add(params, 'sliceAxis', ['None', 'X', 'Y', 'Z'])
+        .name('Slice Axis')
+        .onChange(recreateObjects);
+    sliceFolder
+        .add(params, 'slicePosition', -10, 10)
+        .name('Slice Position');
+    sliceFolder
+        .add(params, 'sliceWidth', 0.12, 5)
+        .name('Slice Width');
 
   // Extend GUI controls for Vector Spherical Harmonics (VSH)
   vectorFolder
@@ -2105,8 +2126,13 @@ function smoothStep(edge0, edge1, x) {
   });
   spinFolder.domElement.style.display = isSpinor ? '' : 'none';
   chargeFolder.domElement.style.display = isCharge ? '' : 'none';
-  sphericalFolder.domElement.style.display = isVector || isScalar ? '' : 'none';
+  chargeFolder2.domElement.style.display = isCharge ? '' : 'none';
+
+  sphericalFolder.domElement.style.display = isScalar ? '' : 'none';
   vectorFolder.domElement.style.display = isVector ? '' : 'none';
+  experimentalFolder.domElement.style.display = params.showSecondWave ? 'none' : '';
+  quantumFolder1.domElement.style.display = isScalar || isVector ? '' : 'none';
+    quantumFolder2.domElement.style.display = (isScalar || isVector ) && (params.showSecondWave)? '' : 'none';
 
   if (isScalar || isVector) {
     quantumFolder1.open();
